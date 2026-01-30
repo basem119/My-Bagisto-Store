@@ -84,7 +84,11 @@ Route::group(['prefix' => 'api'], function () {
 
         Route::post('addresses', 'storeAddress')->name('shop.checkout.onepage.addresses.store');
 
+    Route::get('shipping-methods', 'getShippingMethods')->name('shop.checkout.onepage.shipping_methods.index');
+
         Route::post('shipping-methods', 'storeShippingMethod')->name('shop.checkout.onepage.shipping_methods.store');
+
+        Route::get('payment-methods', 'getPaymentMethods')->name('shop.checkout.onepage.payment_methods.index');
 
         Route::post('payment-methods', 'storePaymentMethod')->name('shop.checkout.onepage.payment_methods.store');
 

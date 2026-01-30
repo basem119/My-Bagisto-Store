@@ -86,6 +86,42 @@ class OnepageController extends APIController
     }
 
     /**
+     * Get shipping methods.
+     *
+     * @return \Illuminate\Http\Resources\Json\JsonResource
+     */
+    public function getShippingMethods(): JsonResource
+    {
+        if (Cart::hasError()) {
+            return new JsonResource([
+                'redirect'     => true,
+                'redirect_url' => route('shop.checkout.cart.index'),
+            ]);
+        }
+
+        $cart = Cart::getCart();
+
+        if ($cart->haveStockableItems()) {
+            if (! $rates = Shipping::collectRates()) {
+                return new JsonResource([
+                    'redirect'     => true,
+                    'redirect_url' => route('shop.checkout.cart.index'),
+                ]);
+            }
+
+            return new JsonResource([
+                'redirect' => false,
+                'data'     => $rates,
+            ]);
+        }
+
+        return new JsonResource([
+            'redirect' => false,
+            'data'     => Payment::getSupportedPaymentMethods(),
+        ]);
+    }
+
+    /**
      * Store shipping method.
      *
      * @return \Illuminate\Http\Response
@@ -112,9 +148,20 @@ class OnepageController extends APIController
     }
 
     /**
+     * Get payment methods.
+     *
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getPaymentMethods()
+    {
+        return response()->json(Payment::getSupportedPaymentMethods());
+    }
+
+    /**
      * Store payment method.
      *
-     * @return array
+     * @return array    +-
+     * 
      */
     public function storePaymentMethod()
     {

@@ -1,0 +1,16 @@
+{
+    "name": "bagisto/laravel-paymob",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Basem Maher",
+            "email": "basem@gmail.com"
+        }
+    ],
+    "require": {},
+    "autoload": {
+  "psr-4": {
+    "Webkul\\Paymob\\": "src/"
+  }
+}
+}

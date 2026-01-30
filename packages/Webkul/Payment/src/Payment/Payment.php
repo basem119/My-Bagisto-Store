@@ -20,7 +20,16 @@ abstract class Payment
      */
     public function isAvailable()
     {
-        return $this->getConfigData('active');
+        $active = $this->getConfigData('active');
+
+        if ($active !== null) {
+            return (bool) $active;
+        }
+
+        // Fallback to config
+        $methods = config('payment_methods');
+
+        return isset($methods[$this->code]['active']) ? (bool) $methods[$this->code]['active'] : false;
     }
 
     /**

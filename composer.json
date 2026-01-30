@@ -84,6 +84,7 @@
             "Webkul\\MagicAI\\": "packages/Webkul/MagicAI/src",
             "Webkul\\Marketing\\": "packages/Webkul/Marketing/src",
             "Webkul\\Notification\\": "packages/Webkul/Notification/src",
+            "Webkul\\Paymob\\": "packages/Webkul/Paymob/src",
             "Webkul\\Paypal\\": "packages/Webkul/Paypal/src",
             "Webkul\\Payment\\": "packages/Webkul/Payment/src",
             "Webkul\\Product\\": "packages/Webkul/Product/src",
