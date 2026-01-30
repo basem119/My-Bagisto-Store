@@ -31,6 +31,7 @@ return [
         \Webkul\Marketing\Providers\ModuleServiceProvider::class,
         \Webkul\Notification\Providers\ModuleServiceProvider::class,
         \Webkul\Payment\Providers\ModuleServiceProvider::class,
+        \Webkul\Paymob\Providers\ModuleServiceProvider::class,
         \Webkul\Paypal\Providers\ModuleServiceProvider::class,
         \Webkul\Product\Providers\ModuleServiceProvider::class,
         \Webkul\Rule\Providers\ModuleServiceProvider::class,
@@ -42,6 +43,7 @@ return [
         \Webkul\Tax\Providers\ModuleServiceProvider::class,
         \Webkul\Theme\Providers\ModuleServiceProvider::class,
         \Webkul\User\Providers\ModuleServiceProvider::class,
+        
     ],
 
 ];
