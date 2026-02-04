@@ -20,12 +20,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
-          source: |
-            *
-            !vendor
-            !node_modules
-            !storage/logs
-            !.git
+          source: .
           target: ${{ secrets.VPS_PATH }}
           rm: false
           overwrite: true
