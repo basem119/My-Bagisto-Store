@@ -11,10 +11,11 @@
 <div class="flex flex-wrap gap-4 px-4 pb-4 pt-6 shadow-sm lg:hidden">
     <div class="flex w-full items-center justify-between">
         <!-- Left Navigation -->
-        <div class="flex items-center gap-x-1.5">
+        <div class="flex items-end gap-x-1.5">
             {!! view_render_event('bagisto.shop.components.layouts.header.mobile.drawer.before') !!}
 
             <!-- Drawer -->
+
             <v-mobile-drawer></v-mobile-drawer>
 
             {!! view_render_event('bagisto.shop.components.layouts.header.mobile.drawer.after') !!}
@@ -23,7 +24,7 @@
 
             <a
                 href="{{ route('shop.home.index') }}"
-                class="max-h-[30px]"
+                class="max-h-[30px] self-center"
                 aria-label="@lang('shop::app.components.layouts.header.mobile.bagisto')"
             >
                 <img
@@ -39,15 +40,16 @@
 
         <!-- Right Navigation -->
         <div>
-            <div class="flex items-center gap-x-5 max-md:gap-x-4">
+            <div class="flex items-end gap-x-5 max-md:gap-x-4">
                 {!! view_render_event('bagisto.shop.components.layouts.header.mobile.compare.before') !!}
 
                 @if($showCompare)
                     <a
                         href="{{ route('shop.compare.index') }}"
                         aria-label="@lang('shop::app.components.layouts.header.mobile.compare')"
+                        class="flex items-end h-[29px]"
                     >
-                        <span class="icon-compare cursor-pointer text-2xl"></span>
+                        <span class="icon-compare cursor-pointer text-2xl leading-none w-full h-full flex items-end justify-center"></span>
                     </a>
                 @endif
 
@@ -65,7 +67,7 @@
                 <div class="max-md:hidden">
                     <x-shop::dropdown position="bottom-{{ core()->getCurrentLocale()->direction === 'ltr' ? 'right' : 'left' }}">
                         <x-slot:toggle>
-                            <span class="icon-users cursor-pointer text-2xl"></span>
+                            <span class="icon-users cursor-pointer text-2xl leading-none w-full h-full flex items-end justify-center"></span>
                         </x-slot>
 
                         <!-- Guest Dropdown -->
@@ -182,7 +184,7 @@
                             href="{{ route('shop.customer.session.create') }}"
                             aria-label="@lang('shop::app.components.layouts.header.mobile.account')"
                         >
-                            <span class="icon-users cursor-pointer text-2xl"></span>
+                            <span class="icon-users cursor-pointer text-2xl leading-none w-full h-full flex items-end justify-center"></span>
                         </a>
                     @endguest
 
@@ -192,7 +194,7 @@
                             href="{{ route('shop.customers.account.index') }}"
                             aria-label="@lang('shop::app.components.layouts.header.mobile.account')"
                         >
-                            <span class="icon-users cursor-pointer text-2xl"></span>
+                            <span class="icon-users cursor-pointer text-2xl leading-none w-full h-full flex items-end justify-center"></span>
                         </a>
                     @endauth
                 </div>
@@ -240,7 +242,7 @@
             @close="onDrawerClose"
         >
             <x-slot:toggle>
-                <span class="icon-hamburger cursor-pointer text-2xl"></span>
+                <span class="icon-hamburger cursor-pointer text-2xl leading-none w-full h-full flex items-end justify-center"></span>
             </x-slot>
 
             <x-slot:header>
