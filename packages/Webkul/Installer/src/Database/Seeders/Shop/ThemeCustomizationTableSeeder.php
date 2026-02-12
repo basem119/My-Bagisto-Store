@@ -206,7 +206,7 @@ class ThemeCustomizationTableSeeder extends Seeder
                                 'limit' => 12,
                             ],
                         ]),
-                    ], [
+                     ], [
                         'theme_customization_id' => 5,
                         'locale'                 => $locale,
                         'options'                => json_encode([

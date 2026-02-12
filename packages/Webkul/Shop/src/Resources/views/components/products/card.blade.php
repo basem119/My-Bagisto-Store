@@ -38,6 +38,7 @@
                     />
                 </a>
 
+
                 {!! view_render_event('bagisto.shop.components.products.card.image.after') !!}
 
                 <!-- Product Ratings -->

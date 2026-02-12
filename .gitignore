@@ -1,32 +1,37 @@
+# Environment
 .env
-.env.testing
+.env.*
+!.env.example
+
+# IDE
 .idea
-.php_cs.cache
-.phpunit.result.cache
 .vscode
-.vagrant
-*.hot
-/stubs
-/data
-/docker-compose-collection
-Homestead.json
-Homestead.yaml
-/ignorables/*
-/node_modules
-npm-debug.log
-package-lock.json
-/playwright-report
-/public/css
-/public/js
-/public/hot
-/public/storage
-/public/vendor
-/lang/vendor
-/storage/*.key
-/storage/dcc-data/
-/test-results
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Laravel
 /vendor
+/node_modules
+/public/storage
+/storage/*.key
+/storage/logs/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/views/*
+/bootstrap/cache/*.php
+
+# NPM
+npm-debug.log
 yarn.lock
 yarn-error.log
+
+# Testing
 /test-results
 /playwright-report
+
+# Misc
+.php_cs.cache
+.phpunit.result.cache
+*.hot
