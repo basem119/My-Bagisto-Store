@@ -1,7 +1,7 @@
 <!-- Mini Cart Vue Component -->
 <v-mini-cart>
     <span
-        class="icon-cart cursor-pointer text-2xl"
+        class="icon-cart cursor-pointer text-2xl leading-none w-full h-full flex items-end justify-center"
         role="button"
         aria-label="@lang('shop::app.checkout.cart.mini-cart.shopping-cart')"
     ></span>
@@ -22,7 +22,7 @@
 
                     <span class="relative">
                         <span
-                            class="icon-cart cursor-pointer text-2xl"
+                            class="icon-cart cursor-pointer text-2xl leading-none w-full h-full flex items-end justify-center"
                             role="button"
                             aria-label="@lang('shop::app.checkout.cart.mini-cart.shopping-cart')"
                             tabindex="0"
@@ -356,7 +356,7 @@
 
                     <span class="relative">
                         <span
-                            class="icon-cart cursor-pointer text-2xl"
+                            class="icon-cart cursor-pointer text-2xl leading-none w-full h-full flex items-end justify-center"
                             role="button"
                             aria-label="@lang('shop::app.checkout.cart.mini-cart.shopping-cart')"
                             tabindex="0"

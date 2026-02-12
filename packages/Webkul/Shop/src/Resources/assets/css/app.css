@@ -526,4 +526,17 @@ img.lazy {
     .skip-to-main-content-link:focus {
         @apply ltr:left-1/2 rtl:right-1/2 ltr:translate-x-1/2 rtl:translate-x-[-50%] opacity-100;
     }
+    .product-color-swatches {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.color-swatch {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1px solid #ccc;
+    cursor: pointer;
+}
 }

@@ -9,17 +9,19 @@
     <div class="flex items-center gap-x-10 max-[1180px]:gap-x-5">
         {!! view_render_event('bagisto.shop.components.layouts.header.desktop.bottom.logo.before') !!}
 
-        <a
-            href="{{ route('shop.home.index') }}"
-            aria-label="@lang('shop::app.components.layouts.header.desktop.bottom.bagisto')"
-        >
-            <img
-                src="{{ core()->getCurrentChannel()->logo_url ?? bagisto_asset('images/logo.svg') }}"
-                width="131"
-                height="29"
-                alt="{{ config('app.name') }}"
+        <div class="mb-2"> <!-- Move logo up by adding margin-bottom -->
+            <a
+                href="{{ route('shop.home.index') }}"
+                aria-label="@lang('shop::app.components.layouts.header.desktop.bottom.bagisto')"
             >
-        </a>
+                <img
+                    src="{{ core()->getCurrentChannel()->logo_url ?? bagisto_asset('images/logo.svg') }}"
+                    width="131"
+                    height="29"
+                    alt="{{ config('app.name') }}"
+                >
+            </a>
+        </div>
 
         {!! view_render_event('bagisto.shop.components.layouts.header.desktop.bottom.logo.after') !!}
 

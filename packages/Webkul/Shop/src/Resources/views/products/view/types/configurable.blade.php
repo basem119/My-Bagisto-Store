@@ -243,9 +243,37 @@
 
                         this.childAttributes.unshift(attribute);
                     }
+
+                    this.applySelectionsFromQuery();
                 },
 
                 methods: {
+                    applySelectionsFromQuery() {
+                        let params = new URLSearchParams(window.location.search);
+
+                        for (const attribute of this.childAttributes) {
+                            let optionId = params.get(`super_attribute[${attribute.id}]`);
+
+                            if (! optionId) {
+                                continue;
+                            }
+
+                            if (! attribute.options?.length) {
+                                this.fillAttributeOptions(attribute);
+                            }
+
+                            let matchedOption = attribute.options.find(option => String(option.id) === String(optionId));
+
+                            if (! matchedOption) {
+                                continue;
+                            }
+
+                            attribute.disabled = false;
+
+                            this.configure(attribute, optionId);
+                        }
+                    },
+
                     configure(attribute, optionId) {
                         this.possibleOptionVariant = this.getPossibleOptionVariant(attribute, optionId);
 

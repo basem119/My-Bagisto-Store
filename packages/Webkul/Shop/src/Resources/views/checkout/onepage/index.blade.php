@@ -20,6 +20,7 @@
     <!-- Page Header -->
     <div class="flex-wrap">
         <div class="flex w-full justify-between border border-b border-l-0 border-r-0 border-t-0 px-[60px] py-4 max-lg:px-8 max-sm:px-4">
+            <!-- Logo -->
             <div class="flex items-center gap-x-14 max-[1180px]:gap-x-9">
                 <a
                     href="{{ route('shop.home.index') }}"
@@ -35,9 +36,13 @@
                 </a>
             </div>
 
-            @guest('customer')
-                @include('shop::checkout.login')
-            @endguest
+            <!-- Header Icons (login, cart, etc.) -->
+            <div class="flex items-center max-sm:items-end gap-x-4">
+                @guest('customer')
+                    @include('shop::checkout.login')
+                @endguest
+                <!-- Add other icons/components here if needed -->
+            </div>
         </div>
     </div>
 

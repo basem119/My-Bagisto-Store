@@ -4,6 +4,7 @@ namespace Webkul\Shop\Http\Resources;
 
 use Illuminate\Http\Resources\Json\JsonResource;
 use Webkul\Product\Helpers\Review;
+use Webkul\Product\Repositories\ProductRepository;
 
 class ProductResource extends JsonResource
 {
@@ -16,6 +17,7 @@ class ProductResource extends JsonResource
     public function __construct($resource)
     {
         $this->reviewHelper = app(Review::class);
+        $this->productRepository = app(ProductRepository::class);
 
         parent::__construct($resource);
     }
@@ -32,6 +34,7 @@ class ProductResource extends JsonResource
 
         return [
             'id'          => $this->id,
+            'type'        => $this->type,
             'sku'         => $this->sku,
             'name'        => $this->name,
             'description' => $this->description,
@@ -55,6 +58,9 @@ class ProductResource extends JsonResource
             'reviews'     => [
                 'total'   => $this->reviewHelper->getTotalReviews($this),
             ],
+            'super_attributes' => $this->type === 'configurable'
+                ? $this->productRepository->getSuperAttributes($this->resource)
+                : [],
         ];
     }
 }

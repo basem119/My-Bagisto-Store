@@ -37,7 +37,6 @@
                         ::alt="product.name"
                     />
                 </a>
-
                 {!! view_render_event('bagisto.shop.components.products.card.image.after') !!}
 
                 <!-- Product Ratings -->
@@ -128,6 +127,34 @@
 
                 {!! view_render_event('bagisto.shop.components.products.card.name.after') !!}
 
+                <!-- Color Swatches -->
+                <div
+                    v-if="product.type === 'configurable'"
+                    class="product-color-swatches"
+                    style="display: flex; gap: 6px; flex-wrap: wrap; align-items: center;"
+                >
+                    <template v-for="attribute in product.super_attributes">
+                        <template v-if="attribute.code === 'color'">
+                            <span
+                                v-for="option in attribute.options"
+                                :key="option.id"
+                                class="color-swatch"
+                                :title="option.label"
+                                @click.stop="goToProductWithSwatch(attribute.id, option.id)"
+                                :style="{
+                                    display: 'inline-block',
+                                    width: '14px',
+                                    height: '14px',
+                                    borderRadius: '9999px',
+                                    border: '1px solid #ccc',
+                                    cursor: 'pointer',
+                                    backgroundColor: option.swatch_value
+                                }"
+                            ></span>
+                        </template>
+                    </template>
+                </div>
+
                 <!-- Pricing -->
                 {!! view_render_event('bagisto.shop.components.products.card.price.before') !!}
 
@@ -146,7 +173,6 @@
 
                         <button
                             class="secondary-button w-full max-w-full p-2.5 text-sm font-medium max-sm:rounded-xl max-sm:p-2"
-                            :disabled="! product.is_saleable || isAddingToCart"
                             @click="addToCart()"
                         >
                             @lang('shop::app.components.products.card.add-to-cart')
@@ -327,8 +353,6 @@
                     <x-shop::button
                         class="primary-button whitespace-nowrap px-8 py-2.5"
                         :title="trans('shop::app.components.products.card.add-to-cart')"
-                        ::loading="isAddingToCart"
-                        ::disabled="! product.is_saleable || isAddingToCart"
                         @click="addToCart()"
                     />
 
@@ -427,33 +451,26 @@
                     return JSON.parse(value);
                 },
 
+                getProductUrl(params = null) {
+                    let baseUrl = `{{ route('shop.product_or_category.index', '') }}/${this.product.url_key}`;
+
+                    if (! params) {
+                        return baseUrl;
+                    }
+
+                    let query = new URLSearchParams(params).toString();
+
+                    return query ? `${baseUrl}?${query}` : baseUrl;
+                },
+
+                goToProductWithSwatch(attributeId, optionId) {
+                    window.location.href = this.getProductUrl({
+                        [`super_attribute[${attributeId}]`]: optionId
+                    });
+                },
+
                 addToCart() {
-                    this.isAddingToCart = true;
-
-                    this.$axios.post('{{ route("shop.api.checkout.cart.store") }}', {
-                            'quantity': 1,
-                            'product_id': this.product.id,
-                        })
-                        .then(response => {
-                            if (response.data.message) {
-                                this.$emitter.emit('update-mini-cart', response.data.data );
-
-                                this.$emitter.emit('add-flash', { type: 'success', message: response.data.message });
-                            } else {
-                                this.$emitter.emit('add-flash', { type: 'warning', message: response.data.data.message });
-                            }
-
-                            this.isAddingToCart = false;
-                        })
-                        .catch(error => {
-                            this.$emitter.emit('add-flash', { type: 'error', message: error.response.data.message });
-
-                            if (error.response.data.redirect_uri) {
-                                window.location.href = error.response.data.redirect_uri;
-                            }
-
-                            this.isAddingToCart = false;
-                        });
+                    window.location.href = this.getProductUrl();
                 },
             },
         });
