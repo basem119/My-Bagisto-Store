@@ -247,6 +247,8 @@ class ProductRepository extends Repository
             'images',
             'videos',
             'attribute_values',
+            'super_attributes',
+            'super_attributes.options',
             'price_indices',
             'inventory_indices',
             'reviews',
@@ -477,6 +479,8 @@ class ProductRepository extends Repository
             'images',
             'videos',
             'attribute_values',
+            'super_attributes',
+            'super_attributes.options',
             'price_indices',
             'inventory_indices',
             'reviews',
@@ -541,10 +545,12 @@ class ProductRepository extends Repository
 
         foreach ($product->super_attributes as $key => $attribute) {
             $superAttributes[$key] = $attribute->toArray();
+            $superAttributes[$key]['options'] = [];
 
             foreach ($attribute->options as $option) {
                 $superAttributes[$key]['options'][] = [
                     'id'           => $option->id,
+                    'label'        => $option->label,
                     'admin_name'   => $option->admin_name,
                     'sort_order'   => $option->sort_order,
                     'swatch_value' => $option->swatch_value,
