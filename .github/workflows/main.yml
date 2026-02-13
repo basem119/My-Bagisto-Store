@@ -24,7 +24,12 @@ jobs:
           target: ${{ secrets.VPS_PATH }}
           rm: false
           overwrite: true
-
+          exclude: |
+            storage/*
+            bootstrap/cache/*
+            vendor/*
+            .env
+            
       - name: Run post-deploy commands
         uses: appleboy/ssh-action@v1.0.3
         with:
