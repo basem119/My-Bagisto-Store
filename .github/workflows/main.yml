@@ -33,6 +33,12 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
             cd ${{ secrets.VPS_PATH }}
+
             composer install --no-dev --optimize-autoloader
-            php artisan migrate --force
+
             php artisan optimize:clear
+            php artisan migrate --force
+            php artisan config:cache
+
+            chmod -R 775 storage
+            chmod -R 775 bootstrap/cache
