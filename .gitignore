@@ -35,3 +35,12 @@ yarn-error.log
 .php_cs.cache
 .phpunit.result.cache
 *.hot
+
+# Import files
+/app/import
+/storage/app/import
+/storage/app/public/import
+
+# User uploaded media (important in Bagisto)
+/storage/app/public
+/public/storage
