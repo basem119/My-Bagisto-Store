@@ -19,6 +19,38 @@
         'theme_code' => $channel->theme,
         'channel_id' => $channel->id,
     ]);
+
+    $normalizeFooterUrl = function (?string $linkUrl): string {
+        if (! is_string($linkUrl) || $linkUrl === '') {
+            return '#';
+        }
+
+        $isAbsolute = str_starts_with($linkUrl, 'http://') || str_starts_with($linkUrl, 'https://');
+
+        if ($isAbsolute) {
+            $path = parse_url($linkUrl, PHP_URL_PATH) ?: '/';
+            $query = parse_url($linkUrl, PHP_URL_QUERY);
+            $fragment = parse_url($linkUrl, PHP_URL_FRAGMENT);
+
+            $normalized = $path;
+
+            if ($query) {
+                $normalized .= '?'.$query;
+            }
+
+            if ($fragment) {
+                $normalized .= '#'.$fragment;
+            }
+
+            return url($normalized);
+        }
+
+        if (str_starts_with($linkUrl, '/')) {
+            return url($linkUrl);
+        }
+
+        return $linkUrl;
+    };
 @endphp
 
 <footer class="mt-9 bg-lightOrange max-sm:mt-10">
@@ -36,7 +68,7 @@
 
                         @foreach ($footerLinkSection as $link)
                             <li>
-                                <a href="{{ $link['url'] }}">
+                                <a href="{{ $normalizeFooterUrl($link['url'] ?? null) }}">
                                     {{ $link['title'] }}
                                 </a>
                             </li>
@@ -68,7 +100,7 @@
                             @foreach ($footerLinkSection as $link)
                                 <li>
                                     <a
-                                        href="{{ $link['url'] }}"
+                                        href="{{ $normalizeFooterUrl($link['url'] ?? null) }}"
                                         class="text-sm font-medium max-sm:text-xs">
                                         {{ $link['title'] }}
                                     </a>
