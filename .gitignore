@@ -21,6 +21,8 @@ Thumbs.db
 /storage/framework/sessions/*
 /storage/framework/views/*
 /bootstrap/cache/*.php
+/storage/*.key
+/storage/app/public/*
 
 # NPM
 npm-debug.log
@@ -44,3 +46,7 @@ yarn-error.log
 # User uploaded media (important in Bagisto)
 /storage/app/public
 /public/storage
+
+storage/*
+public/storage/*
+app/import/*
