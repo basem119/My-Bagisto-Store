@@ -42,6 +42,8 @@ class ImportProducts extends Command
 
             $grouped = collect($rows)->groupBy('parent_sku');
 
+            $parentIds = [];
+
             foreach ($grouped as $parentSku => $items) {
 
                 $this->info("Processing: {$parentSku}");
@@ -50,7 +52,11 @@ class ImportProducts extends Command
                     $parentSku,
                     $items->first()
                 );
+
+                $parentIds[] = $parent->id;
+
                 $firstVariant = null;
+
                 foreach ($items as $item) {
                     $variant = $this->createSimpleProduct(
                         $parent,
@@ -82,6 +88,11 @@ class ImportProducts extends Command
                     'attribute_id' => $this->getAttributeId('color')
                 ]);
             }
+
+            foreach ($parentIds as $parentId) {
+                $this->syncRelatedProductsByCategory($parentId);
+            }
+
             DB::commit();
 
             $this->info('Import completed');
@@ -131,6 +142,7 @@ class ImportProducts extends Command
         ]);
 
         // EN
+        $this->saveAttribute($product->id, 'sku', $sku);
         $this->saveAttribute($product->id, 'name', $data['name_en'], 'en');
         $this->saveAttribute($product->id, 'description', $data['description_en'], 'en');
         $this->saveAttribute($product->id, 'short_description', $data['description_en'], 'en');
@@ -171,12 +183,10 @@ class ImportProducts extends Command
             'attribute_family_id' => 1,
             'parent_id' => $parent->id,
         ]);
-        DB::table('product_relations')->updateOrInsert([
-            'parent_id' => $parent->id,
-            'child_id'  => $product->id,
-        ]);
+
         $productId = $product->id;
         // EN
+        $this->saveAttribute($productId, 'sku', $data['sku']);
         $this->saveAttribute($productId, 'name', $data['name_en'], 'en');
         $this->saveAttribute($productId, 'description', $data['description_en'], 'en');
         $this->saveAttribute($productId, 'short_description', $data['description_en'], 'en');
@@ -248,6 +258,37 @@ class ImportProducts extends Command
             'product_id' => $product->id,
             'category_id' => $category->category_id
         ]);
+    }
+
+    private function syncRelatedProductsByCategory(int $productId): void
+    {
+        $categoryIds = DB::table('product_categories')
+            ->where('product_id', $productId)
+            ->pluck('category_id');
+
+        DB::table('product_relations')
+            ->where('parent_id', $productId)
+            ->delete();
+
+        if ($categoryIds->isEmpty()) {
+            return;
+        }
+
+        $relatedProductIds = DB::table('product_categories')
+            ->join('products', 'products.id', '=', 'product_categories.product_id')
+            ->whereIn('product_categories.category_id', $categoryIds)
+            ->where('products.id', '!=', $productId)
+            ->whereNull('products.parent_id')
+            ->where('products.type', 'configurable')
+            ->distinct()
+            ->pluck('products.id');
+
+        foreach ($relatedProductIds as $relatedProductId) {
+            DB::table('product_relations')->insert([
+                'parent_id' => $productId,
+                'child_id'  => $relatedProductId,
+            ]);
+        }
     }
 
     // private function createColorOption($color)
