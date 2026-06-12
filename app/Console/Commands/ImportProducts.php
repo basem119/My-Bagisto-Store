@@ -95,11 +95,20 @@ class ImportProducts extends Command
 
             DB::commit();
 
+            $this->info('Reindexing product inventory, prices, and flat data...');
+
+            $this->call('indexer:index', [
+                '--type' => ['inventory', 'price', 'flat'],
+                '--mode' => ['full'],
+            ]);
+
             $this->info('Import completed');
 
         } catch (\Exception $e) {
 
-            DB::rollBack();
+            if (DB::transactionLevel() > 0) {
+                DB::rollBack();
+            }
 
             $this->error($e->getMessage());
         }
