@@ -35,7 +35,7 @@ jobs:
 
           echo "===== Updating Source ====="
 
-          cd /opt/apps/bagisto/source
+                    cd /opt/apps/bagisto/source
 
           git fetch origin
           git reset --hard origin/main
