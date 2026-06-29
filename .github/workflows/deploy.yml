@@ -1,0 +1,86 @@
+name: Deploy Dragoon Production
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: |
+          ssh -i ~/.ssh/id_ed25519 \
+          ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+
+          set -e
+
+          echo "===== Updating Source ====="
+
+          cd /opt/apps/bagisto/source
+
+          git fetch origin
+          git reset --hard origin/main
+
+          echo "===== Installing Composer Packages ====="
+
+          docker exec bagisto-app composer install \
+            --no-dev \
+            --prefer-dist \
+            --optimize-autoloader \
+            --no-interaction
+
+          echo "===== Running Migrations ====="
+
+          docker exec bagisto-app php artisan migrate --force
+
+          echo "===== Clearing Cache ====="
+
+          docker exec bagisto-app php artisan optimize:clear
+
+          echo "===== Rebuilding Cache ====="
+
+          docker exec bagisto-app php artisan config:cache
+          docker exec bagisto-app php artisan route:cache
+          docker exec bagisto-app php artisan view:cache
+
+          echo "===== Restart Queue Worker ====="
+
+          docker restart bagisto-worker
+
+          echo "===== Deployment Finished ====="
+
+          EOF
+
+      - name: Health Check
+        run: |
+
+          sleep 10
+
+          curl \
+            --fail \
+            --silent \
+            --show-error \
+            ${{ secrets.DOMAIN }}
+
+      - name: Success
+        run: |
+          echo "Deployment Successful!"
