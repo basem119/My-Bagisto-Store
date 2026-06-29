@@ -1,2 +1,5 @@
 *
 !.gitignore
+!components/
+!components/analytics/
+!components/analytics/facebook-pixel.blade.php
