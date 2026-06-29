@@ -170,7 +170,7 @@
                 </p>
 
                 <p class="text-sm text-zinc-700 max-sm:text-xs">
-                    <a href="tel:01004295364" class="underline">01004295364</a>
+                    <a href="tel:01039852360" class="underline">01039852360</a>
                 </p>
             </div>
         </div>
