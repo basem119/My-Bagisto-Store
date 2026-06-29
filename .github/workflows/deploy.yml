@@ -35,53 +35,40 @@ jobs:
 
           echo "===== Updating Source ====="
 
-                    cd /opt/apps/bagisto/source
+          cd /opt/apps/bagisto/source
 
+          echo "===== Updating Source ====="
           git fetch origin
           git reset --hard origin/main
-          git clean -fd
 
-          echo "===== Installing Composer Packages ====="
+          # Remove only untracked files, but preserve storage
+          git clean -fd -e storage
 
+          echo "===== Fix Ownership ====="
+          sudo chown -R deploy:deploy /opt/apps/bagisto/source
+
+          echo "===== Docker ====="
+          cd /opt/apps/bagisto/docker
+          docker compose up -d --build
+
+          echo "===== Laravel ====="
           docker exec bagisto-app composer install \
-            --no-dev \
-            --prefer-dist \
-            --optimize-autoloader \
-            --no-interaction
-
-          echo "===== Running Migrations ====="
-
-          docker exec bagisto-app php artisan migrate --force
-
-          echo "===== Clearing Cache ====="
+              --no-dev \
+              --prefer-dist \
+              --no-interaction \
+              --optimize-autoloader
 
           docker exec bagisto-app php artisan optimize:clear
 
-          echo "===== Rebuilding Cache ====="
+          docker exec bagisto-app php artisan migrate --force
 
           docker exec bagisto-app php artisan config:cache
           docker exec bagisto-app php artisan route:cache
           docker exec bagisto-app php artisan view:cache
 
-          echo "===== Restart Queue Worker ====="
+          echo "===== Permissions ====="
+          docker exec bagisto-app chown -R www-data:www-data storage bootstrap/cache
+          docker exec bagisto-app chmod -R ug+rw storage bootstrap/cache
 
-          docker restart bagisto-worker
-
-          echo "===== Deployment Finished ====="
-
-          EOF
-
-      - name: Health Check
-        run: |
-
-          sleep 10
-
-          curl \
-            --fail \
-            --silent \
-            --show-error \
-            ${{ secrets.DOMAIN }}
-
-      - name: Success
-        run: |
-          echo "Deployment Successful!"
+          echo "===== Health Check ====="
+          curl -f https://dragoon-bag.com/up
