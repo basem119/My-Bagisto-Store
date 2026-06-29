@@ -86,7 +86,7 @@
 
         {!! view_render_event('bagisto.shop.layout.head.after') !!}
 
-        @include('components.analytics.facebook-pixel')
+        @include('shop::components.analytics.facebook-pixel')
     </head>
 
     <body>
