@@ -20,11 +20,11 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware) {
          $middleware->trustProxies(
-        at: '*',
-        headers: Request::HEADER_X_FORWARDED_FOR
-            | Request::HEADER_X_FORWARDED_HOST
-            | Request::HEADER_X_FORWARDED_PORT
-            | Request::HEADER_X_FORWARDED_PROTO
+        at: '*' //,
+        // headers: Request::HEADER_X_FORWARDED_FOR
+        //     | Request::HEADER_X_FORWARDED_HOST
+        //     | Request::HEADER_X_FORWARDED_PORT
+        //     | Request::HEADER_X_FORWARDED_PROTO
     );
         /**
          * Remove the default Laravel middleware that prevents requests during maintenance mode. There are three
