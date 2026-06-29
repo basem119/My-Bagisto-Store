@@ -9,13 +9,18 @@ concurrency:
   group: production
   cancel-in-progress: true
 
+env:
+  APP_PATH: /opt/apps/bagisto/source
+  DOCKER_PATH: /opt/apps/bagisto/docker
+  APP_CONTAINER: bagisto-app
+  APP_URL: https://dragoon-bag.com
+
 jobs:
   deploy:
     name: Deploy to Production
     runs-on: ubuntu-latest
 
     steps:
-
       - name: Checkout Repository
         uses: actions/checkout@v4
 
@@ -26,49 +31,109 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ secrets.VPS_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Deploy
+      - name: Deploy Application
         run: |
           ssh -i ~/.ssh/id_ed25519 \
-          ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
+            ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << 'EOF'
 
           set -e
 
-          echo "===== Updating Source ====="
+          APP_PATH="/opt/apps/bagisto/source"
+          DOCKER_PATH="/opt/apps/bagisto/docker"
+          APP_CONTAINER="bagisto-app"
+          APP_URL="https://dragoon-bag.com"
 
-          cd /opt/apps/bagisto/source
+          echo "========================================"
+          echo "Updating Source"
+          echo "========================================"
 
-          echo "===== Updating Source ====="
+          cd "$APP_PATH"
+
           git fetch origin
+          git checkout main
           git reset --hard origin/main
 
-          # Remove only untracked files, but preserve storage
+          # Remove untracked files while preserving storage
           git clean -fd -e storage
 
-          echo "===== Fix Ownership ====="
-          sudo chown -R deploy:deploy /opt/apps/bagisto/source
+          echo "========================================"
+          echo "Fixing Ownership"
+          echo "========================================"
 
-          echo "===== Docker ====="
-          cd /opt/apps/bagisto/docker
+          sudo chown -R deploy:deploy \
+              "$APP_PATH/storage" \
+              "$APP_PATH/bootstrap"
+
+          echo "========================================"
+          echo "Building Docker Containers"
+          echo "========================================"
+
+          cd "$DOCKER_PATH"
+
           docker compose up -d --build
 
-          echo "===== Laravel ====="
-          docker exec bagisto-app composer install \
+          echo "========================================"
+          echo "Installing Composer Dependencies"
+          echo "========================================"
+
+          docker exec "$APP_CONTAINER" composer install \
               --no-dev \
               --prefer-dist \
               --no-interaction \
+              --no-progress \
               --optimize-autoloader
 
-          docker exec bagisto-app php artisan optimize:clear
+          echo "========================================"
+          echo "Laravel Maintenance"
+          echo "========================================"
 
-          docker exec bagisto-app php artisan migrate --force
+          docker exec "$APP_CONTAINER" php artisan optimize:clear
 
-          docker exec bagisto-app php artisan config:cache
-          docker exec bagisto-app php artisan route:cache
-          docker exec bagisto-app php artisan view:cache
+          docker exec "$APP_CONTAINER" php artisan migrate --force
 
-          echo "===== Permissions ====="
-          docker exec bagisto-app chown -R www-data:www-data storage bootstrap/cache
-          docker exec bagisto-app chmod -R ug+rw storage bootstrap/cache
+          docker exec "$APP_CONTAINER" php artisan config:cache
+          docker exec "$APP_CONTAINER" php artisan route:cache
+          docker exec "$APP_CONTAINER" php artisan view:cache
 
-          echo "===== Health Check ====="
-          curl -f https://dragoon-bag.com/up
+          echo "========================================"
+          echo "Fixing Runtime Permissions"
+          echo "========================================"
+
+          docker exec "$APP_CONTAINER" chown -R www-data:www-data storage bootstrap/cache
+
+          docker exec "$APP_CONTAINER" chmod -R ug+rw storage bootstrap/cache
+
+          echo "========================================"
+          echo "Application Health Check"
+          echo "========================================"
+
+          curl --fail --silent --show-error \
+              "$APP_URL/up"
+
+          echo
+          echo "========================================"
+          echo "Checking for Mixed Content"
+          echo "========================================"
+
+          HTTP_COUNT=$(curl -sk "$APP_URL" | grep -o "http://dragoon-bag.com" | wc -l)
+
+          if [ "$HTTP_COUNT" -ne 0 ]; then
+              echo "ERROR: Mixed-content regression detected!"
+              exit 1
+          fi
+
+          echo "✓ HTTPS verification passed"
+
+          echo
+          echo "========================================"
+          echo "Running Containers"
+          echo "========================================"
+
+          docker compose ps
+
+          echo
+          echo "========================================"
+          echo "Deployment Completed Successfully"
+          echo "========================================"
+
+          EOF
