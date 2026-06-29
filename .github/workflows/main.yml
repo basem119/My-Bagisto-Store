@@ -3,7 +3,7 @@ name: Deploy Bagisto
 on:
   push:
     branches:
-      - main
+      - mainOld
 
 jobs:
   deploy:
