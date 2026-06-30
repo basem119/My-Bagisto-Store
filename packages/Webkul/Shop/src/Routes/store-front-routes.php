@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use Webkul\Shop\Http\Controllers\BookingProductController;
 use Webkul\Shop\Http\Controllers\CompareController;
+use Webkul\Shop\Http\Controllers\FacebookFeedController;
 use Webkul\Shop\Http\Controllers\HomeController;
 use Webkul\Shop\Http\Controllers\PageController;
 use Webkul\Shop\Http\Controllers\ProductController;
@@ -78,3 +79,7 @@ Route::controller(ProductController::class)->group(function () {
  */
 Route::get('booking-slots/{id}', [BookingProductController::class, 'index'])
     ->name('shop.booking-product.slots.index');
+
+Route::get('facebook-feed.xml', [FacebookFeedController::class, 'index'])
+    ->name('shop.facebook.feed')
+    ->middleware('cache.response');
