@@ -41,7 +41,7 @@ class FacebookFeedService
         $channel = core()->getRequestedChannelCode();
         $locale = app()->getLocale();
 
-        return ProductFlatProxy::modelClass()::with(['product.images', 'product.categories'])
+        return ProductFlatProxy::modelClass()::with(['product.images', 'product.categories', 'product.price_indices'])
             ->where('status', 1)
             ->where('visible_individually', 1)
             ->where('channel', $channel)
@@ -72,7 +72,7 @@ class FacebookFeedService
         $writer->writeElement('g:price', $this->getPriceValue($productFlat));
 
         if ($brand = $this->getBrand($productFlat)) {
-            $writer->writeElement('g:brand', $this->cleanText($brand));
+            $writer->writeElement('g:brand','Dragoon');
         }
 
         if ($productType = $this->getProductType($productFlat)) {
@@ -104,11 +104,15 @@ class FacebookFeedService
 
     protected function getPriceValue($productFlat): string
     {
-        $price = $productFlat->special_price && $this->isSpecialPriceActive($productFlat)
-            ? $productFlat->special_price
-            : $productFlat->price;
+        try {
+            $price = $productFlat->getTypeInstance()->getFinalPrice();
+        } catch (\Throwable $exception) {
+            $price = $productFlat->special_price && $this->isSpecialPriceActive($productFlat)
+                ? $productFlat->special_price
+                : $productFlat->price;
+        }
 
-        return number_format($price, 2, '.', '') . ' ' . core()->getCurrentCurrencyCode();
+        return number_format((float) core()->convertPrice($price), 2, '.', '') . ' ' . core()->getCurrentCurrencyCode();
     }
 
     protected function isSpecialPriceActive($productFlat): bool
