@@ -164,6 +164,8 @@
                         paymentMethods: null,
 
                         canPlaceOrder: false,
+
+                        initiateCheckoutTracked: false,
                     }
                 },
 
@@ -178,6 +180,8 @@
                                 this.cart = response.data.data;
 
                                 this.scrollToCurrentStep();
+
+                                this.trackInitiateCheckout();
                             })
                             .catch(error => {});
                     },
@@ -198,6 +202,33 @@
                         } else if (this.currentStep == 'payment') {
                             this.paymentMethods = null;
                         }
+                    },
+
+                    trackInitiateCheckout() {
+                        if (
+                            this.initiateCheckoutTracked
+                            || ! this.cart
+                            || typeof window.fbqTrack !== 'function'
+                        ) {
+                            return;
+                        }
+
+                        const contents = (this.cart.items || []).map(item => ({
+                            id: item.product_url_key || item.id,
+                            quantity: item.quantity,
+                            item_price: item.price,
+                        }));
+
+                        window.fbqTrack('InitiateCheckout', {
+                            value: this.cart.grand_total,
+                            currency: '{{ core()->getCurrentCurrencyCode() }}',
+                            contents: contents,
+                            content_ids: contents.map(item => item.id),
+                            content_type: 'product',
+                            num_items: this.cart.items_qty ?? this.cart.items_count ?? contents.reduce((sum, item) => sum + (item.quantity || 0), 0),
+                        });
+
+                        this.initiateCheckoutTracked = true;
                     },
 
                     stepProcessed(data) {

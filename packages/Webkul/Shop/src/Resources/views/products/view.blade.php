@@ -466,13 +466,24 @@
             </x-shop::form>
         </script>
 
+        @php
+            $wishlistCount = 0;
+
+            if (auth()->guard('customer')->check()) {
+                $wishlistCount = auth()->guard()->user()->wishlist_items
+                    ->where('channel_id', data_get(core()->getCurrentChannel(), 'id'))
+                    ->where('product_id', $product->id)
+                    ->count();
+            }
+        @endphp
+
         <script type="module">
             app.component('v-product', {
                 template: '#v-product-template',
 
                 data() {
                     return {
-                        isWishlist: Boolean("{{ (boolean) auth()->guard()->user()?->wishlist_items->where('channel_id', core()->getCurrentChannel()->id)->where('product_id', $product->id)->count() }}"),
+                        isWishlist: Boolean("{{ (boolean) $wishlistCount }}"),
 
                         isCustomer: '{{ auth()->guard('customer')->check() }}',
 
@@ -486,6 +497,19 @@
                     }
                 },
 
+                mounted() {
+                    if (typeof window.fbqTrack === 'function') {
+                        window.fbqTrack('ViewContent', {
+                            content_ids: [{!! json_encode($product->sku, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}],
+                            content_name: {!! json_encode($product->name, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!},
+                            content_type: 'product',
+                            content_category: {!! json_encode(optional($product->categories->first())->name, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!},
+                            value: {{ $product->getTypeInstance()->getMinimalPrice() ?? 0 }},
+                            currency: '{{ core()->getCurrentCurrencyCode() }}',
+                        });
+                    }
+                },
+
                 methods: {
                     addToCart(params) {
                         const operation = this.is_buy_now ? 'buyNow' : 'addToCart';
@@ -496,6 +520,23 @@
 
                         this.ensureQuantity(formData);
 
+                        const quantity = Number(formData.get('quantity') || 1);
+                        const productPayload = {
+                            content_ids: [{!! json_encode($product->sku, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!}],
+                            content_name: {!! json_encode($product->name, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!},
+                            content_type: 'product',
+                            value: {{ $product->getTypeInstance()->getMinimalPrice() ?? 0 }},
+                            currency: '{{ core()->getCurrentCurrencyCode() }}',
+                            contents: [
+                                {
+                                    id: {!! json_encode($product->sku, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!},
+                                    quantity: quantity,
+                                    item_price: {{ $product->getTypeInstance()->getMinimalPrice() ?? 0 }},
+                                }
+                            ],
+                            num_items: quantity,
+                        };
+
                         this.$axios.post('{{ route("shop.api.checkout.cart.store") }}', formData, {
                                 headers: {
                                     'Content-Type': 'multipart/form-data'
@@ -503,6 +544,10 @@
                             })
                             .then(response => {
                                 if (response.data.message) {
+                                    if (typeof window.fbqTrack === 'function') {
+                                        window.fbqTrack('AddToCart', productPayload);
+                                    }
+
                                     this.$emitter.emit('update-mini-cart', response.data.data);
 
                                     this.$emitter.emit('add-flash', { type: 'success', message: response.data.message });

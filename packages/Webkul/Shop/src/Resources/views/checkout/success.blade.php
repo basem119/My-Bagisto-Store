@@ -57,4 +57,42 @@
 			{{ view_render_event('bagisto.shop.checkout.success.continue-shopping.after', ['order' => $order]) }}
 		</div>
 	</div>
-</x-shop::layouts>
+
+    @pushOnce('scripts')
+        <script>
+            (function () {
+                const orderId = {!! json_encode($order->increment_id, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!};
+                const storageKey = 'fbq_purchase_fired_' + orderId;
+
+                if (typeof window.fbqTrack !== 'function') {
+                    return;
+                }
+
+                if (localStorage.getItem(storageKey)) {
+                    return;
+                }
+
+                const contents = [
+                    @foreach ($order->items as $item)
+                        {
+                            id: {!! json_encode($item->product_id) !!},
+                            quantity: {{ $item->qty_ordered }},
+                            item_price: {{ $item->price }},
+                        },
+                    @endforeach
+                ];
+
+                window.fbqTrack('Purchase', {
+                    eventID: orderId,
+                    value: {{ $order->grand_total }},
+                    currency: '{{ core()->getCurrentCurrencyCode() }}',
+                    contents: contents,
+                    content_ids: contents.map(item => item.id),
+                    content_type: 'product',
+                    num_items: {{ $order->items->sum('qty_ordered') }},
+                });
+
+                localStorage.setItem(storageKey, '1');
+            })();
+        </script>
+    @endPushOnce
