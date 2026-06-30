@@ -104,15 +104,60 @@ class FacebookFeedService
 
     protected function getPriceValue($productFlat): string
     {
+        $price = $this->getProductPrice($productFlat);
+
+        return number_format((float) core()->convertPrice($price), 2, '.', '') . ' ' . core()->getCurrentCurrencyCode();
+    }
+
+    protected function getProductPrice($productFlat): float
+    {
+        if ($this->isConfigurableProduct($productFlat)) {
+            $priceIndex = $productFlat->product->getTypeInstance()->getPriceIndex();
+
+            if ($priceIndex && $priceIndex->min_price > 0) {
+                return (float) $priceIndex->min_price;
+            }
+
+            return $this->getConfigurableSaleableChildPrice($productFlat->product);
+        }
+
         try {
-            $price = $productFlat->getTypeInstance()->getFinalPrice();
+            return $productFlat->getTypeInstance()->getFinalPrice();
         } catch (\Throwable $exception) {
-            $price = $productFlat->special_price && $this->isSpecialPriceActive($productFlat)
+            return $productFlat->special_price && $this->isSpecialPriceActive($productFlat)
                 ? $productFlat->special_price
                 : $productFlat->price;
         }
+    }
 
-        return number_format((float) core()->convertPrice($price), 2, '.', '') . ' ' . core()->getCurrentCurrencyCode();
+    protected function isConfigurableProduct($productFlat): bool
+    {
+        return optional($productFlat->product)->type === 'configurable';
+    }
+
+    protected function getConfigurableSaleableChildPrice($product): float
+    {
+        $prices = [];
+
+        foreach ($product->variants as $variant) {
+            if (! $variant->getTypeInstance()->isSaleable()) {
+                continue;
+            }
+
+            try {
+                $prices[] = $variant->getTypeInstance()->getFinalPrice();
+            } catch (\Throwable $exception) {
+                $prices[] = $variant->special_price && $this->isSpecialPriceActive($variant)
+                    ? $variant->special_price
+                    : $variant->price;
+            }
+        }
+
+        if (empty($prices)) {
+            return 0;
+        }
+
+        return min($prices);
     }
 
     protected function isSpecialPriceActive($productFlat): bool

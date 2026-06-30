@@ -75,7 +75,7 @@
                 const contents = [
                     @foreach ($order->items as $item)
                         {
-                            id: {!! json_encode($item->sku ?? $item->product_id) !!},
+                            id: {!! json_encode(optional(optional($item->product)->parent)->sku ?? $item->sku ?? $item->product_id) !!},
                             quantity: {{ $item->qty_ordered }},
                             item_price: {{ (float) $item->price }},
                             content_name: {!! json_encode($item->name ?? optional($item->product)->name ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!},
