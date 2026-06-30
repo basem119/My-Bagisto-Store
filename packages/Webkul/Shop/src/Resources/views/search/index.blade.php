@@ -309,5 +309,23 @@
                 },
             });
         </script>
+
+        <script>
+            (function () {
+                const query = {!! json_encode($query, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!};
+
+                if (! query || typeof window.fbqTrack !== 'function') {
+                    return;
+                }
+
+                window.fbqTrack('Search', {
+                    search_string: query,
+                    content_type: 'search',
+                    content_category: 'search',
+                    value: 0,
+                    currency: '{{ core()->getCurrentCurrencyCode() }}',
+                });
+            })();
+        </script>
     @endPushOnce
 </x-shop::layouts>
