@@ -75,24 +75,32 @@
                 const contents = [
                     @foreach ($order->items as $item)
                         {
-                            id: {!! json_encode($item->product_id) !!},
+                            id: {!! json_encode($item->sku ?? $item->product_id) !!},
                             quantity: {{ $item->qty_ordered }},
-                            item_price: {{ $item->price }},
+                            item_price: {{ (float) $item->price }},
+                            content_name: {!! json_encode($item->name ?? optional($item->product)->name ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!},
+                            content_category: {!! json_encode(optional(optional($item->product)->categories->first())->name ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!},
                         },
                     @endforeach
                 ];
 
-                window.fbqTrack('Purchase', {
-                    eventID: orderId,
-                    value: {{ $order->grand_total }},
-                    currency: '{{ core()->getCurrentCurrencyCode() }}',
-                    contents: contents,
-                    content_ids: contents.map(item => item.id),
-                    content_type: 'product',
-                    num_items: {{ $order->items->sum('qty_ordered') }},
-                });
+                try {
+                    window.fbqTrack('Purchase', {
+                        eventID: orderId,
+                        value: (float) {{ $order->grand_total }},
+                        currency: '{{ core()->getCurrentCurrencyCode() }}',
+                        contents: contents,
+                        content_ids: contents.map(item => item.id),
+                        content_name: {!! json_encode($order->items->first()->name ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!},
+                        content_category: {!! json_encode(optional(optional($order->items->first()->product)->categories->first())->name ?? '', JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) !!},
+                        content_type: 'product',
+                        num_items: {{ $order->items->sum('qty_ordered') }},
+                    });
 
-                localStorage.setItem(storageKey, '1');
+                    localStorage.setItem(storageKey, '1');
+                } catch (error) {
+                    console.warn('fbqPurchaseError', error);
+                }
             })();
         </script>
     @endPushOnce
