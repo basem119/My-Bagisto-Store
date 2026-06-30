@@ -41,7 +41,7 @@ class FacebookFeedService
         $channel = core()->getRequestedChannelCode();
         $locale = app()->getLocale();
 
-        return ProductFlatProxy::modelClass()::with(['product.images', 'product.categories'])
+        return ProductFlatProxy::modelClass()::with(['product.images', 'product.categories', 'product.price_indices'])
             ->where('status', 1)
             ->where('visible_individually', 1)
             ->where('channel', $channel)
@@ -72,7 +72,7 @@ class FacebookFeedService
         $writer->writeElement('g:price', $this->getPriceValue($productFlat));
 
         if ($brand = $this->getBrand($productFlat)) {
-            $writer->writeElement('g:brand', $this->cleanText($brand));
+            $writer->writeElement('g:brand','Dragoon');
         }
 
         if ($productType = $this->getProductType($productFlat)) {
@@ -104,11 +104,60 @@ class FacebookFeedService
 
     protected function getPriceValue($productFlat): string
     {
-        $price = $productFlat->special_price && $this->isSpecialPriceActive($productFlat)
-            ? $productFlat->special_price
-            : $productFlat->price;
+        $price = $this->getProductPrice($productFlat);
 
-        return number_format($price, 2, '.', '') . ' ' . core()->getCurrentCurrencyCode();
+        return number_format((float) core()->convertPrice($price), 2, '.', '') . ' ' . core()->getCurrentCurrencyCode();
+    }
+
+    protected function getProductPrice($productFlat): float
+    {
+        if ($this->isConfigurableProduct($productFlat)) {
+            $priceIndex = $productFlat->product->getTypeInstance()->getPriceIndex();
+
+            if ($priceIndex && $priceIndex->min_price > 0) {
+                return (float) $priceIndex->min_price;
+            }
+
+            return $this->getConfigurableSaleableChildPrice($productFlat->product);
+        }
+
+        try {
+            return $productFlat->getTypeInstance()->getFinalPrice();
+        } catch (\Throwable $exception) {
+            return $productFlat->special_price && $this->isSpecialPriceActive($productFlat)
+                ? $productFlat->special_price
+                : $productFlat->price;
+        }
+    }
+
+    protected function isConfigurableProduct($productFlat): bool
+    {
+        return optional($productFlat->product)->type === 'configurable';
+    }
+
+    protected function getConfigurableSaleableChildPrice($product): float
+    {
+        $prices = [];
+
+        foreach ($product->variants as $variant) {
+            if (! $variant->getTypeInstance()->isSaleable()) {
+                continue;
+            }
+
+            try {
+                $prices[] = $variant->getTypeInstance()->getFinalPrice();
+            } catch (\Throwable $exception) {
+                $prices[] = $variant->special_price && $this->isSpecialPriceActive($variant)
+                    ? $variant->special_price
+                    : $variant->price;
+            }
+        }
+
+        if (empty($prices)) {
+            return 0;
+        }
+
+        return min($prices);
     }
 
     protected function isSpecialPriceActive($productFlat): bool
