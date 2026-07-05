@@ -18,13 +18,14 @@ class SEO
             '@context'    => 'https://schema.org/',
             '@type'       => 'Product',
             'name'        => $product->name,
-            'description' => $product->description,
+            'description' => strip_tags($product->description),
             'url'         => route('shop.product_or_category.index', $product->url_key),
+            'brand'       => [
+                '@type' => 'Organization',
+                'name'  => config('app.name') ?: 'Dragoon',
+            ],
+            'sku'         => $product->sku,
         ];
-
-        if (core()->getConfigData('catalog.rich_snippets.products.show_sku')) {
-            $data['sku'] = $product->sku;
-        }
 
         if (core()->getConfigData('catalog.rich_snippets.products.show_weight')) {
             $data['weight'] = $product->weight;
@@ -148,9 +149,12 @@ class SEO
     {
         return [
             '@type'         => 'Offer',
+            'url'           => route('shop.product_or_category.index', $product->url_key),
             'priceCurrency' => core()->getCurrentCurrencyCode(),
             'price'         => $product->getTypeInstance()->getMinimalPrice(),
-            'availability'  => 'https://schema.org/InStock',
+            'availability'  => $product->isSaleable()
+                ? 'https://schema.org/InStock'
+                : 'https://schema.org/OutOfStock',
         ];
     }
 
