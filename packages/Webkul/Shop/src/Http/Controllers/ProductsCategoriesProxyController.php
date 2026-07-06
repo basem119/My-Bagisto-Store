@@ -4,6 +4,7 @@ namespace Webkul\Shop\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Webkul\Category\Repositories\CategoryRepository;
+use Webkul\Shop\Http\Resources\CategoryTreeResource;
 use Webkul\Marketing\Repositories\URLRewriteRepository;
 use Webkul\Product\Repositories\ProductRepository;
 use Webkul\Theme\Repositories\ThemeCustomizationRepository;
@@ -49,7 +50,10 @@ class ProductsCategoriesProxyController extends Controller
                 'channel_id' => core()->getCurrentChannel()->id,
             ]);
 
-            return view('shop::home.index', compact('customizations'));
+            $categories = $this->categoryRepository->getVisibleCategoryTree(core()->getCurrentChannel()->root_category_id);
+            $categories = CategoryTreeResource::collection($categories);
+
+            return view('shop::home.index', compact('customizations', 'categories'));
         }
 
         $category = $this->categoryRepository->findBySlug($slugOrURLKey);
