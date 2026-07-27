@@ -95,6 +95,7 @@ class ProductImporter
         $productId = $this->storage->getProductId($product);
 
         $this->storage->saveCoreAttributes($productId, $row, $row['sku'], false);
+        $this->applyColorAttribute($productId, $row);
         $this->applyConfiguredAttributes($productId, $row, 'variant');
 
         $this->storage->attachCategory($productId, $row['category'] ?? null);
@@ -106,12 +107,12 @@ class ProductImporter
 
     private function applyConfiguredAttributes(int $productId, array $row, string $target): void
     {
-        foreach ($this->attributeManager->getConfig()['attributes'] ?? [] as $code => $attributeConfig) {
+        foreach ($this->attributeManager->getConfig() as $code => $attributeConfig) {
             if (! is_array($attributeConfig)) {
                 continue;
             }
 
-            $scope = (string) ($attributeConfig['applies_to'] ?? 'variant');
+            $scope = (string) ($attributeConfig['applies_to'] ?? 'both');
 
             if ($scope !== $target && $scope !== 'both') {
                 continue;
@@ -131,7 +132,7 @@ class ProductImporter
                 continue;
             }
 
-            $column = (string) ($attributeConfig['csv_column'] ?? '');
+            $column = (string) ($attributeConfig['csv_column'] ?? $code);
 
             if ($column === '') {
                 continue;
@@ -170,6 +171,27 @@ class ProductImporter
         }
 
         $this->storage->saveAttributeValue($productId, $attribute->code, $rawValue, $locale);
+    }
+
+    private function applyColorAttribute(int $productId, array $row): void
+    {
+        $colorValue = trim($row['color'] ?? '');
+
+        if ($colorValue === '') {
+            return;
+        }
+
+        $colorAttribute = $this->attributeManager->getAttribute('color');
+
+        if (! $colorAttribute) {
+            return;
+        }
+
+        $resolved = $this->optionManager->resolveValue($colorAttribute, $colorValue);
+
+        if ($resolved !== null) {
+            $this->storage->saveAttributeValue($productId, 'color', $resolved);
+        }
     }
 
     private function syncConfigurableAttributes(int $parentId): void

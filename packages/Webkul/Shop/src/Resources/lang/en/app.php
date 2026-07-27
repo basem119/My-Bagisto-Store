@@ -800,7 +800,7 @@ return [
             'add-to-cart'            => 'Add To Cart',
             'add-to-compare'         => 'Product added in compare.',
             'add-to-wishlist'        => 'Add To Wishlist',
-            'additional-information' => 'Additional Information',
+            'additional-information' => 'Item Details',
             'already-in-compare'     => 'Product is already added in compare.',
             'buy-now'                => 'Buy Now',
             'compare'                => 'Compare',

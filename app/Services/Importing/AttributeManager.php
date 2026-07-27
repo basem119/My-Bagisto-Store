@@ -25,15 +25,25 @@ class AttributeManager
     public function syncFromConfig(): void
     {
         $config = $this->getConfig();
-        $familyId = (int) ($config['attribute_family_id'] ?? 1);
-        $groups = $this->syncGroups($familyId, $config['groups'] ?? []);
+        $familyId = 1;
 
-        foreach ($config['attributes'] ?? [] as $key => $attributeConfig) {
+        $groupNames = collect($config)
+            ->filter(fn ($v) => is_array($v))
+            ->pluck('group')
+            ->filter()
+            ->unique()
+            ->map(fn ($name) => ['name' => $name])
+            ->values()
+            ->all();
+
+        $groups = $this->syncGroups($familyId, $groupNames);
+
+        foreach ($config as $key => $attributeConfig) {
             if (! is_array($attributeConfig)) {
                 continue;
             }
 
-            $code = $attributeConfig['attribute_code'] ?? (is_string($key) ? $key : null);
+            $code = is_string($key) ? $key : null;
 
             if (! $code) {
                 continue;
@@ -45,6 +55,10 @@ class AttributeManager
 
             if ($groupId) {
                 $this->attachToGroup($attribute->id, $groupId, (int) ($attributeConfig['position'] ?? 0));
+            }
+
+            if (! empty($attributeConfig['options']) && is_array($attributeConfig['options'])) {
+                $this->syncOptions($attribute, $attributeConfig['options']);
             }
 
             $this->attributeCache[$code] = $attribute->fresh();
@@ -68,23 +82,23 @@ class AttributeManager
 
     public function getAttributeConfig(string $code): array
     {
-        $attributes = $this->getConfig()['attributes'] ?? [];
+        $config = $this->getConfig();
 
-        return is_array($attributes[$code] ?? null) ? $attributes[$code] : [];
+        return is_array($config[$code] ?? null) ? $config[$code] : [];
     }
 
     public function getConfigurableAttributeConfigs(): array
     {
         $result = [];
 
-        foreach ($this->getConfig()['attributes'] ?? [] as $key => $config) {
+        foreach ($this->getConfig() as $key => $config) {
             if (! is_array($config)) {
                 continue;
             }
 
-            $code = $config['attribute_code'] ?? (is_string($key) ? $key : null);
+            $code = is_string($key) ? $key : null;
 
-            if (! $code || ! (bool) ($config['use_to_create_configurable_product'] ?? false)) {
+            if (! $code || ! (bool) ($config['use_to_create_configurable_product'] ?? $config['configurable'] ?? false)) {
                 continue;
             }
 
@@ -191,13 +205,13 @@ class AttributeManager
             'code'                => $code,
             'admin_name'          => (string) ($config['admin_name'] ?? Str::headline($code)),
             'type'                => (string) ($config['type'] ?? 'text'),
-            'validation'          => $config['validation'] ?: null,
+            'validation'          => $config['validation'] ?? null,
             'position'            => (int) ($config['position'] ?? 0),
-            'is_required'         => (bool) ($config['is_required'] ?? false),
+            'is_required'         => (bool) ($config['is_required'] ?? $config['required'] ?? false),
             'value_per_locale'    => (bool) ($config['value_per_locale'] ?? false),
             'value_per_channel'   => (bool) ($config['value_per_channel'] ?? false),
-            'is_configurable'     => (bool) ($config['use_to_create_configurable_product'] ?? false),
-            'is_visible_on_front' => (bool) ($config['visible_on_product_view_page'] ?? true),
+            'is_configurable'     => (bool) ($config['use_to_create_configurable_product'] ?? $config['configurable'] ?? false),
+            'is_visible_on_front' => (bool) ($config['visible_on_product_view_page'] ?? $config['visible_on_front'] ?? true),
             'is_comparable'       => (bool) ($config['comparable'] ?? false),
             'is_filterable'       => $isFilterable,
             'is_user_defined'     => (bool) ($config['is_user_defined'] ?? true),
@@ -244,6 +258,45 @@ class AttributeManager
     private function normalizeGroupKey(string $name): string
     {
         return Str::of($name)->lower()->replace(' ', '_')->value();
+    }
+
+    private function syncOptions(ProductAttribute $attribute, array $options): void
+    {
+        foreach ($options as $label) {
+            $label = trim((string) $label);
+
+            if ($label === '') {
+                continue;
+            }
+
+            $exists = DB::table('attribute_options')
+                ->where('attribute_id', $attribute->id)
+                ->whereRaw('LOWER(admin_name) = ?', [mb_strtolower($label)])
+                ->exists();
+
+            if ($exists) {
+                continue;
+            }
+
+            $sortOrder = (int) DB::table('attribute_options')
+                ->where('attribute_id', $attribute->id)
+                ->max('sort_order');
+
+            $optionId = DB::table('attribute_options')->insertGetId([
+                'attribute_id' => $attribute->id,
+                'admin_name'   => $label,
+                'sort_order'   => $sortOrder + 1,
+            ]);
+
+            foreach (['en', 'ar'] as $locale) {
+                DB::table('attribute_option_translations')->updateOrInsert(
+                    ['attribute_option_id' => $optionId, 'locale' => $locale],
+                    ['label' => $label]
+                );
+            }
+
+            $this->log("Created option: {$label} for {$attribute->code}");
+        }
     }
 
     private function log(string $message): void
