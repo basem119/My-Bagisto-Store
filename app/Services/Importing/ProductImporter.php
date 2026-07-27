@@ -100,7 +100,12 @@ class ProductImporter
 
         $this->storage->attachCategory($productId, $row['category'] ?? null);
         $this->storage->attachInventory($productId, (float) ($row['qty'] ?? 0));
-        $this->storage->attachImagesFromFolder($productId, $row['sku']);
+        $this->storage->attachImagesFromFolder(
+            $productId,
+            $row['sku'],
+            trim($row['parent_sku'] ?? ''),
+            trim($row['color'] ?? '')
+        );
 
         return $productId;
     }

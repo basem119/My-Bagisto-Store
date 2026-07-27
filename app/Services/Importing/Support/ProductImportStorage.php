@@ -94,11 +94,29 @@ class ProductImportStorage
         );
     }
 
-    public function attachImagesFromFolder(int $productId, string $sku): void
+    public function attachImagesFromFolder(int $productId, string $sku, ?string $parentSku = null, ?string $color = null): void
     {
-        $folder = storage_path("app/import/images/{$sku}");
+        $folder = null;
 
-        if (! is_dir($folder)) {
+        // Try new structure: {ParentSKU}/{Color}/
+        if ($parentSku && $color) {
+            $candidate = storage_path("app/import/images/{$parentSku}/{$color}");
+
+            if (is_dir($candidate)) {
+                $folder = $candidate;
+            }
+        }
+
+        // Fall back to old structure: {SKU}/
+        if (! $folder) {
+            $candidate = storage_path("app/import/images/{$sku}");
+
+            if (is_dir($candidate)) {
+                $folder = $candidate;
+            }
+        }
+
+        if (! $folder) {
             return;
         }
 
