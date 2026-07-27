@@ -30,6 +30,7 @@ class Attribute extends TranslatableModel implements AttributeContract
         'value_per_channel',
         'default_value',
         'is_filterable',
+        'is_searchable',
         'is_configurable',
         'is_visible_on_front',
         'is_user_defined',
