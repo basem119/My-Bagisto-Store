@@ -51,11 +51,13 @@ class ProductImportStorage
         $this->saveAttributeValue($productId, 'name', $nameEn, 'en');
         $this->saveAttributeValue($productId, 'description', $descriptionEn, 'en');
         $this->saveAttributeValue($productId, 'short_description', $descriptionEn, 'en');
-        $this->saveAttributeValue($productId, 'url_key', Str::slug($nameEn ?: $sku), 'en');
+        $this->saveAttributeValue($productId, 'url_key', Str::slug($sku), 'en');
         $this->saveAttributeValue($productId, 'name', $nameAr, 'ar');
         $this->saveAttributeValue($productId, 'description', $descriptionAr, 'ar');
         $this->saveAttributeValue($productId, 'short_description', $descriptionAr, 'ar');
         $this->saveAttributeValue($productId, 'url_key', Str::slug($sku.'-ar'), 'ar');
+        $this->saveAttributeValue($productId, 'description', $descriptionEn);
+        $this->saveAttributeValue($productId, 'short_description', $descriptionEn);
         $this->saveAttributeValue($productId, 'status', 1);
         $this->saveAttributeValue($productId, 'visible_individually', $isParent ? 1 : 0);
 
