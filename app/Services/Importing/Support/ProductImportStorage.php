@@ -43,21 +43,23 @@ class ProductImportStorage
     public function saveCoreAttributes(int $productId, array $row, string $sku, bool $isParent): void
     {
         $nameEn = $row['name_en'] ?? '';
-        $descriptionEn = $row['description_en'] ?? '';
         $nameAr = $row['name_ar'] ?? '';
-        $descriptionAr = $row['description_ar'] ?? '';
+        $descEnLong = $row['description_en_long'] ?? '';
+        $descArLong = $row['description_ar_long'] ?? '';
+        $descEnShort = $row['description_en_short'] ?? '';
+        $descArShort = $row['description_ar_short'] ?? '';
 
         $this->saveAttributeValue($productId, 'sku', $sku);
         $this->saveAttributeValue($productId, 'name', $nameEn, 'en');
-        $this->saveAttributeValue($productId, 'description', $descriptionEn, 'en');
-        $this->saveAttributeValue($productId, 'short_description', $descriptionEn, 'en');
+        $this->saveAttributeValue($productId, 'description', $descEnLong, 'en');
+        $this->saveAttributeValue($productId, 'short_description', $descEnShort, 'en');
         $this->saveAttributeValue($productId, 'url_key', Str::slug($sku), 'en');
         $this->saveAttributeValue($productId, 'name', $nameAr, 'ar');
-        $this->saveAttributeValue($productId, 'description', $descriptionAr, 'ar');
-        $this->saveAttributeValue($productId, 'short_description', $descriptionAr, 'ar');
+        $this->saveAttributeValue($productId, 'description', $descArLong, 'ar');
+        $this->saveAttributeValue($productId, 'short_description', $descArShort, 'ar');
         $this->saveAttributeValue($productId, 'url_key', Str::slug($sku.'-ar'), 'ar');
-        $this->saveAttributeValue($productId, 'description', $descriptionEn);
-        $this->saveAttributeValue($productId, 'short_description', $descriptionEn);
+        $this->saveAttributeValue($productId, 'description', $descEnLong);
+        $this->saveAttributeValue($productId, 'short_description', $descEnShort);
         $this->saveAttributeValue($productId, 'status', 1);
         $this->saveAttributeValue($productId, 'visible_individually', $isParent ? 1 : 0);
 
@@ -100,7 +102,7 @@ class ProductImportStorage
     {
         $folder = null;
 
-        // Try new structure: {ParentSKU}/{Color}/
+        // Try structure: {ParentSKU}/{Color}/
         if ($parentSku && $color) {
             $candidate = storage_path("app/import/images/{$parentSku}/{$color}");
 
@@ -109,11 +111,20 @@ class ProductImportStorage
             }
         }
 
-        // Fall back to old structure: {SKU}/
+        // Try structure: {SKU}/{Color}/
+        if (! $folder && $color) {
+            $candidate = storage_path("app/import/images/{$sku}/{$color}");
+
+            if (is_dir($candidate)) {
+                $folder = $candidate;
+            }
+        }
+
+        // Fall back to: {SKU}/ (flat images directly in folder)
         if (! $folder) {
             $candidate = storage_path("app/import/images/{$sku}");
 
-            if (is_dir($candidate)) {
+            if (is_dir($candidate) && $this->hasImageFiles($candidate)) {
                 $folder = $candidate;
             }
         }
@@ -248,5 +259,22 @@ class ProductImportStorage
         }
 
         return (float) str_replace(',', '', trim($value));
+    }
+
+    private function hasImageFiles(string $directory): bool
+    {
+        $files = scandir($directory) ?: [];
+
+        foreach ($files as $file) {
+            if (in_array($file, ['.', '..'], true)) {
+                continue;
+            }
+
+            if (is_file($directory.'/'.$file)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -4,17 +4,25 @@ namespace App\Services\Importing;
 
 use App\Services\Importing\Support\ProductImportStorage;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Webkul\Attribute\Models\Attribute as ProductAttribute;
+use Webkul\Product\Models\Product;
 use Webkul\Product\Repositories\ProductRepository;
 
 class ProductImporter
 {
+    private $logger;
+
     public function __construct(
         private ProductRepository $productRepository,
         private AttributeManager $attributeManager,
         private OptionManager $optionManager,
         private ProductImportStorage $storage
     ) {
+        $this->logger = Log::build([
+            'driver' => 'single',
+            'path'   => storage_path('logs/import.log'),
+        ]);
     }
 
     public function import(string $path): array
@@ -31,6 +39,14 @@ class ProductImporter
 
         DB::transaction(function () use ($groupedRows, &$parentIds) {
             foreach ($groupedRows as $parentSku => $items) {
+                $existing = Product::where('sku', (string) $parentSku)->first();
+
+                if ($existing) {
+                    $this->logger->info("Skipped: parent SKU '{$parentSku}' already exists (id={$existing->id})");
+
+                    continue;
+                }
+
                 $parent = $this->createConfigurableProduct((string) $parentSku, $items->first());
 
                 $parentId = $this->storage->getProductId($parent);
@@ -46,6 +62,14 @@ class ProductImporter
                 $firstVariantId = null;
 
                 foreach ($items as $item) {
+                    $variantSku = trim($item['sku'] ?? '');
+
+                    if ($variantSku && Product::where('sku', $variantSku)->exists()) {
+                        $this->logger->info("Skipped: variant SKU '{$variantSku}' already exists");
+
+                        continue;
+                    }
+
                     $variant = $this->createSimpleProduct($parentId, $item);
 
                     if (! $firstVariantId) {
@@ -201,6 +225,16 @@ class ProductImporter
 
     private function syncConfigurableAttributes(int $parentId): void
     {
+        // Always register built-in color as super attribute
+        $colorAttribute = $this->attributeManager->getAttribute('color');
+
+        if ($colorAttribute) {
+            DB::table('product_super_attributes')->updateOrInsert([
+                'product_id'   => $parentId,
+                'attribute_id' => $colorAttribute->id,
+            ]);
+        }
+
         foreach ($this->attributeManager->getConfigurableAttributeConfigs() as $config) {
             $code = (string) $config['attribute_code'];
 
