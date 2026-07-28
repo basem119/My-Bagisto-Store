@@ -98,13 +98,14 @@ class ProductImportStorage
         );
     }
 
-    public function attachImagesFromFolder(int $productId, string $sku, ?string $parentSku = null, ?string $color = null): void
+    public function attachImagesFromFolder(int $productId, string $sku, ?string $parentSku = null, ?string $color = null, ?string $imageBasePath = null): int
     {
+        $basePath = $imageBasePath ?? storage_path('app/import/images');
         $folder = null;
 
         // Try structure: {ParentSKU}/{Color}/
         if ($parentSku && $color) {
-            $candidate = storage_path("app/import/images/{$parentSku}/{$color}");
+            $candidate = $basePath."/{$parentSku}/{$color}";
 
             if (is_dir($candidate)) {
                 $folder = $candidate;
@@ -113,7 +114,7 @@ class ProductImportStorage
 
         // Try structure: {SKU}/{Color}/
         if (! $folder && $color) {
-            $candidate = storage_path("app/import/images/{$sku}/{$color}");
+            $candidate = $basePath."/{$sku}/{$color}";
 
             if (is_dir($candidate)) {
                 $folder = $candidate;
@@ -122,7 +123,7 @@ class ProductImportStorage
 
         // Fall back to: {SKU}/ (flat images directly in folder)
         if (! $folder) {
-            $candidate = storage_path("app/import/images/{$sku}");
+            $candidate = $basePath."/{$sku}";
 
             if (is_dir($candidate) && $this->hasImageFiles($candidate)) {
                 $folder = $candidate;
@@ -130,11 +131,12 @@ class ProductImportStorage
         }
 
         if (! $folder) {
-            return;
+            return 0;
         }
 
         $files = scandir($folder) ?: [];
         $position = 0;
+        $count = 0;
 
         foreach ($files as $file) {
             if (in_array($file, ['.', '..'], true)) {
@@ -151,13 +153,20 @@ class ProductImportStorage
 
             Storage::disk('public')->put($newPath, file_get_contents($fullPath));
 
-            DB::table('product_images')->insert([
-                'product_id' => $productId,
-                'type'       => 'image',
-                'path'       => $newPath,
-                'position'   => $position++,
-            ]);
+            DB::table('product_images')->updateOrInsert(
+                ['product_id' => $productId, 'path' => $newPath],
+                [
+                    'product_id' => $productId,
+                    'type'       => 'image',
+                    'path'       => $newPath,
+                    'position'   => $position++,
+                ]
+            );
+
+            $count++;
         }
+
+        return $count;
     }
 
     public function copyFirstVariantImageToParent(int $parentId, int $variantId): void

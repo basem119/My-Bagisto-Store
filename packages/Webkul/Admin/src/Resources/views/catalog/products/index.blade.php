@@ -12,6 +12,9 @@
             <!-- Export Modal -->
             <x-admin::datagrid.export :src="route('admin.catalog.products.index')" />
 
+            <!-- Import Products -->
+            <v-import-products></v-import-products>
+
             {!! view_render_event('bagisto.admin.catalog.products.create.before') !!}
 
             @if (bouncer()->hasPermission('catalog.products.create'))
@@ -626,6 +629,447 @@
                     }
                 }
             })
+        </script>
+
+        <!-- Import Products Template -->
+        <script type="text/x-template" id="v-import-products-template">
+            <div>
+                <!-- Import Button -->
+                <button
+                    type="button"
+                    class="transparent-button hover:bg-gray-200 dark:text-white dark:hover:bg-gray-800"
+                    @click="openModal"
+                >
+                    <span class="icon-admin-store text-xl text-gray-600"></span>
+                    Import Products
+                </button>
+
+                <!-- Import Modal -->
+                <x-admin::modal ref="importModal">
+                    <x-slot:header>
+                        <p class="text-lg font-bold text-gray-800 dark:text-white">
+                            Import Products
+                        </p>
+                    </x-slot>
+
+                    <x-slot:content>
+                        <div v-if="step === 'form'">
+                            <!-- Source Selection -->
+                            <div class="mb-4">
+                                <label class="mb-2 block text-xs font-medium text-gray-800 dark:text-white">
+                                    Import Source
+                                </label>
+
+                                <div class="flex gap-4">
+                                    <label class="flex cursor-pointer items-center gap-2">
+                                        <input type="radio" v-model="source" value="upload" class="text-blue-600">
+                                        <span class="text-sm text-gray-700 dark:text-gray-300">Upload ZIP</span>
+                                    </label>
+
+                                    <label class="flex cursor-pointer items-center gap-2">
+                                        <input type="radio" v-model="source" value="folder" class="text-blue-600">
+                                        <span class="text-sm text-gray-700 dark:text-gray-300">Server Folder</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- Upload ZIP -->
+                            <div v-if="source === 'upload'" class="mb-4">
+                                <label class="mb-2 block text-xs font-medium text-gray-800 dark:text-white">
+                                    Upload ZIP File
+                                </label>
+
+                                <input
+                                    type="file"
+                                    ref="zipFile"
+                                    accept=".zip"
+                                    @change="onFileSelected"
+                                    class="w-full rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                >
+
+                                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                    Expected structure inside ZIP:
+                                </p>
+                                <pre class="mt-1 rounded bg-gray-100 p-2 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-400">products.csv
+images/
+  ├── PARENT-SKU/
+  │   ├── Color/
+  │   │   ├── 1.jpg
+  │   │   └── 2.jpg</pre>
+                            </div>
+
+                            <!-- Server Folder -->
+                            <div v-if="source === 'folder'" class="mb-4">
+                                <label class="mb-2 block text-xs font-medium text-gray-800 dark:text-white">
+                                    Select Folder
+                                </label>
+
+                                <div v-if="loadingFolders" class="py-2 text-sm text-gray-500">
+                                    Loading folders...
+                                </div>
+
+                                <select
+                                    v-else
+                                    v-model="selectedFolder"
+                                    class="w-full rounded border border-gray-300 px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                >
+                                    <option value="">-- Select folder --</option>
+                                    <option v-for="f in folders" :key="f" :value="f">
+                                        @{{ f }}
+                                    </option>
+                                </select>
+
+                                <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                    Folders in <code>storage/app/imports/</code>
+                                </p>
+                            </div>
+
+                            <!-- Error Message -->
+                            <div v-if="errorMessage" class="mt-2 rounded bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                                @{{ errorMessage }}
+                            </div>
+                        </div>
+
+                        <!-- Progress Screen -->
+                        <div v-if="step === 'progress'" class="py-2">
+                            <div class="mb-4">
+                                <div class="mb-1 flex justify-between text-sm">
+                                    <span class="text-gray-700 dark:text-gray-300">Importing...</span>
+                                    <span class="font-medium text-gray-900 dark:text-white">@{{ progress.percentage }}%</span>
+                                </div>
+                                <div class="h-3 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                                    <div
+                                        class="h-3 rounded-full transition-all duration-500"
+                                        :class="progress.status === 'failed' ? 'bg-red-500' : 'bg-blue-600'"
+                                        :style="{ width: progress.percentage + '%' }"
+                                    ></div>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Created</p>
+                                    <p class="text-lg font-bold text-green-600">@{{ progress.created_count }}</p>
+                                </div>
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Updated</p>
+                                    <p class="text-lg font-bold text-blue-600">@{{ progress.updated_count }}</p>
+                                </div>
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Skipped</p>
+                                    <p class="text-lg font-bold text-yellow-600">@{{ progress.skipped_count }}</p>
+                                </div>
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Images</p>
+                                    <p class="text-lg font-bold text-purple-600">@{{ progress.image_count }}</p>
+                                </div>
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Errors</p>
+                                    <p class="text-lg font-bold text-red-600">@{{ progress.error_count }}</p>
+                                </div>
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Duration</p>
+                                    <p class="text-lg font-bold text-gray-700 dark:text-gray-300">@{{ progress.duration || '--:--:--' }}</p>
+                                </div>
+                            </div>
+
+                            <div v-if="progress.status === 'failed'" class="mt-3 rounded bg-red-50 p-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                                @{{ progress.error_message }}
+                            </div>
+                        </div>
+
+                        <!-- Completion Screen -->
+                        <div v-if="step === 'complete'" class="py-2">
+                            <div class="mb-4 flex items-center gap-2">
+                                <span class="text-2xl">&#x2705;</span>
+                                <p class="text-lg font-bold text-green-600">Import Completed</p>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Products Created</p>
+                                    <p class="text-xl font-bold text-green-600">@{{ progress.created_count }}</p>
+                                </div>
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Products Updated</p>
+                                    <p class="text-xl font-bold text-blue-600">@{{ progress.updated_count }}</p>
+                                </div>
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Skipped</p>
+                                    <p class="text-xl font-bold text-yellow-600">@{{ progress.skipped_count }}</p>
+                                </div>
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Images Imported</p>
+                                    <p class="text-xl font-bold text-purple-600">@{{ progress.image_count }}</p>
+                                </div>
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Duration</p>
+                                    <p class="text-xl font-bold text-gray-700 dark:text-gray-300">@{{ progress.duration }}</p>
+                                </div>
+                                <div class="rounded border border-gray-200 p-3 dark:border-gray-700">
+                                    <p class="text-xs text-gray-500 dark:text-gray-400">Errors</p>
+                                    <p class="text-xl font-bold" :class="progress.error_count > 0 ? 'text-red-600' : 'text-green-600'">@{{ progress.error_count }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </x-slot>
+
+                    <x-slot:footer>
+                        <div class="flex items-center gap-x-2.5">
+                            <!-- Form Step Buttons -->
+                            <template v-if="step === 'form'">
+                                <button
+                                    type="button"
+                                    class="transparent-button hover:bg-gray-200 dark:text-white dark:hover:bg-gray-800"
+                                    @click="$refs.importModal.toggle()"
+                                >
+                                    Cancel
+                                </button>
+
+                                <button
+                                    type="button"
+                                    class="primary-button"
+                                    :disabled="isStarting"
+                                    @click="startImport"
+                                >
+                                    <span v-if="isStarting">Starting...</span>
+                                    <span v-else>Start Import</span>
+                                </button>
+                            </template>
+
+                            <!-- Completion Buttons -->
+                            <template v-if="step === 'complete' || progress.status === 'failed'">
+                                <a
+                                    :href="logDownloadUrl"
+                                    class="transparent-button hover:bg-gray-200 dark:text-white dark:hover:bg-gray-800"
+                                    target="_blank"
+                                >
+                                    Download Log
+                                </a>
+
+                                <button
+                                    type="button"
+                                    class="primary-button"
+                                    @click="closeAndRefresh"
+                                >
+                                    Close
+                                </button>
+                            </template>
+                        </div>
+                    </x-slot>
+                </x-admin::modal>
+            </div>
+        </script>
+
+        <script type="module">
+            app.component('v-import-products', {
+                template: '#v-import-products-template',
+
+                data() {
+                    return {
+                        step: 'form',
+                        source: 'upload',
+                        selectedFile: null,
+                        selectedFolder: '',
+                        folders: [],
+                        loadingFolders: false,
+                        isStarting: false,
+                        errorMessage: '',
+                        batchId: null,
+                        pollInterval: null,
+                        progress: {
+                            status: 'pending',
+                            percentage: 0,
+                            created_count: 0,
+                            updated_count: 0,
+                            skipped_count: 0,
+                            image_count: 0,
+                            error_count: 0,
+                            duration: null,
+                            error_message: null,
+                        },
+                    };
+                },
+
+                computed: {
+                    logDownloadUrl() {
+                        if (!this.batchId) return '#';
+                        return `{{ route('admin.catalog.products.import.log', ':id') }}`.replace(':id', this.batchId);
+                    }
+                },
+
+                watch: {
+                    source(val) {
+                        this.errorMessage = '';
+                        if (val === 'folder') {
+                            this.loadFolders();
+                        }
+                    }
+                },
+
+                methods: {
+                    openModal() {
+                        this.resetState();
+                        this.$refs.importModal.toggle();
+                    },
+
+                    resetState() {
+                        this.step = 'form';
+                        this.source = 'upload';
+                        this.selectedFile = null;
+                        this.selectedFolder = '';
+                        this.errorMessage = '';
+                        this.isStarting = false;
+                        this.batchId = null;
+                        this.stopPolling();
+                        this.progress = {
+                            status: 'pending',
+                            percentage: 0,
+                            created_count: 0,
+                            updated_count: 0,
+                            skipped_count: 0,
+                            image_count: 0,
+                            error_count: 0,
+                            duration: null,
+                            error_message: null,
+                        };
+                    },
+
+                    onFileSelected(e) {
+                        this.selectedFile = e.target.files[0] || null;
+                        this.errorMessage = '';
+                    },
+
+                    async loadFolders() {
+                        this.loadingFolders = true;
+                        try {
+                            const response = await this.$axios.get("{{ route('admin.catalog.products.import.folders') }}");
+                            this.folders = response.data.folders;
+                        } catch (e) {
+                            this.folders = [];
+                        }
+                        this.loadingFolders = false;
+                    },
+
+                    async startImport() {
+                        this.errorMessage = '';
+
+                        if (this.source === 'upload') {
+                            if (!this.selectedFile) {
+                                this.errorMessage = 'Please select a ZIP file.';
+                                return;
+                            }
+                            await this.uploadZip();
+                        } else {
+                            if (!this.selectedFolder) {
+                                this.errorMessage = 'Please select a folder.';
+                                return;
+                            }
+                            await this.importFromFolder();
+                        }
+                    },
+
+                    async uploadZip() {
+                        this.isStarting = true;
+                        const formData = new FormData();
+                        formData.append('file', this.selectedFile);
+
+                        try {
+                            const response = await this.$axios.post(
+                                "{{ route('admin.catalog.products.import.upload') }}",
+                                formData,
+                                { headers: { 'Content-Type': 'multipart/form-data' } }
+                            );
+                            this.batchId = response.data.batch_id;
+                            this.step = 'progress';
+                            this.startPolling();
+                        } catch (e) {
+                            this.errorMessage = this.extractError(e);
+                        }
+                        this.isStarting = false;
+                    },
+
+                    async importFromFolder() {
+                        this.isStarting = true;
+                        try {
+                            const response = await this.$axios.post(
+                                "{{ route('admin.catalog.products.import.folder') }}",
+                                { folder: this.selectedFolder }
+                            );
+                            this.batchId = response.data.batch_id;
+                            this.step = 'progress';
+                            this.startPolling();
+                        } catch (e) {
+                            this.errorMessage = this.extractError(e);
+                        }
+                        this.isStarting = false;
+                    },
+
+                    extractError(e) {
+                        if (!e.response) {
+                            return 'Network error. Check that the server is running.';
+                        }
+
+                        const data = e.response.data;
+
+                        // Laravel validation errors
+                        if (data.errors) {
+                            return Object.values(data.errors).flat().join(' ');
+                        }
+
+                        // Our custom error field
+                        if (data.error) {
+                            return data.error;
+                        }
+
+                        if (data.message) {
+                            return data.message;
+                        }
+
+                        return `Upload failed (HTTP ${e.response.status})`;
+                    },
+
+                    startPolling() {
+                        this.pollProgress();
+                        this.pollInterval = setInterval(() => this.pollProgress(), 2000);
+                    },
+
+                    stopPolling() {
+                        if (this.pollInterval) {
+                            clearInterval(this.pollInterval);
+                            this.pollInterval = null;
+                        }
+                    },
+
+                    async pollProgress() {
+                        if (!this.batchId) return;
+
+                        try {
+                            const url = `{{ route('admin.catalog.products.import.progress', ':id') }}`.replace(':id', this.batchId);
+                            const response = await this.$axios.get(url);
+                            this.progress = response.data;
+
+                            if (this.progress.status === 'completed') {
+                                this.stopPolling();
+                                this.step = 'complete';
+                            } else if (this.progress.status === 'failed') {
+                                this.stopPolling();
+                            }
+                        } catch (e) {
+                            // Keep polling on transient errors
+                        }
+                    },
+
+                    closeAndRefresh() {
+                        this.$refs.importModal.toggle();
+                        window.location.reload();
+                    }
+                },
+
+                beforeUnmount() {
+                    this.stopPolling();
+                }
+            });
         </script>
     @endPushOnce
 </x-admin::layouts>
