@@ -11,7 +11,7 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('import_batches', function (Blueprint $table) {
+        Schema::create('product_import_batches', function (Blueprint $table) {
             $table->id();
             $table->string('batch_id')->unique();
             $table->enum('status', ['pending', 'processing', 'completed', 'failed'])->default('pending');
@@ -37,6 +37,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('import_batches');
+        Schema::dropIfExists('product_import_batches');
     }
 };

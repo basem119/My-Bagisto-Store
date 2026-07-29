@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessProductImport;
 use App\Services\Importing\Support\ImportProgressTracker;
+use App\Services\Importing\Support\PathHelper;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\File;
@@ -33,26 +34,33 @@ class ProductImportController extends Controller
 
             $extension = strtolower($file->getClientOriginalExtension());
 
+            // Reject RAR with clear message
+            if ($extension === 'rar') {
+                return response()->json([
+                    'error' => 'RAR archives are not supported. Please compress your import package as a ZIP archive.',
+                ], 422);
+            }
+
             if ($extension !== 'zip') {
                 return response()->json([
                     'error' => "Invalid file type: .{$extension}. Only .zip files are accepted.",
                 ], 422);
             }
 
-            $batchId = (string) Str::uuid();
-            $extractPath = storage_path("app/imports/{$batchId}");
-
-            File::ensureDirectoryExists($extractPath);
-
             if (! class_exists(ZipArchive::class)) {
                 return response()->json(['error' => 'PHP zip extension is not installed.'], 500);
             }
+
+            // Extract to tmp directory first
+            $batchId = (string) Str::uuid();
+            $tmpPath = storage_path("app/imports/tmp/{$batchId}");
+            File::ensureDirectoryExists($tmpPath);
 
             $zip = new ZipArchive;
             $openResult = $zip->open($file->getPathname());
 
             if ($openResult !== true) {
-                File::deleteDirectory($extractPath);
+                File::deleteDirectory($tmpPath);
 
                 $zipErrors = [
                     ZipArchive::ER_EXISTS => 'File already exists',
@@ -71,26 +79,39 @@ class ProductImportController extends Controller
                 return response()->json(['error' => "Failed to open ZIP: {$errorMsg}"], 422);
             }
 
-            $zip->extractTo($extractPath);
+            $zip->extractTo($tmpPath);
             $zip->close();
 
-            $csvPath = $this->findCsv($extractPath);
+            // Validate package structure
+            $validationError = $this->validatePackageStructure($tmpPath);
 
-            if (! $csvPath) {
-                // List what was extracted for debugging
-                $contents = collect(File::allFiles($extractPath))
-                    ->map(fn ($f) => $f->getRelativePathname())
-                    ->take(20)
-                    ->implode(', ');
+            if ($validationError) {
+                File::deleteDirectory($tmpPath);
 
-                File::deleteDirectory($extractPath);
-
-                return response()->json([
-                    'error' => "No products.csv found in ZIP. Extracted files: {$contents}",
-                ], 422);
+                return response()->json(['error' => $validationError], 422);
             }
 
-            $imagesPath = $this->findImagesDir($extractPath);
+            $csvPath = $this->findCsv($tmpPath);
+            $imagesPath = $this->findImagesDir($tmpPath);
+
+            // Move from tmp to active batch directory
+            $batchPath = storage_path("app/imports/{$batchId}");
+            File::moveDirectory($tmpPath, $batchPath);
+
+            // Update paths to reflect the move
+            $csvPath = str_replace(
+                PathHelper::normalize($tmpPath),
+                PathHelper::normalize($batchPath),
+                PathHelper::normalize($csvPath)
+            );
+
+            if ($imagesPath) {
+                $imagesPath = str_replace(
+                    PathHelper::normalize($tmpPath),
+                    PathHelper::normalize($batchPath),
+                    PathHelper::normalize($imagesPath)
+                );
+            }
 
             $tracker = ImportProgressTracker::create('upload');
             $tracker->getBatch()->update(['batch_id' => $batchId]);
@@ -99,7 +120,7 @@ class ProductImportController extends Controller
                 $batchId,
                 $csvPath,
                 $imagesPath,
-                $extractPath
+                $batchPath
             );
 
             return response()->json([
@@ -109,6 +130,11 @@ class ProductImportController extends Controller
                 'has_images' => $imagesPath !== null,
             ]);
         } catch (\Throwable $e) {
+            // Clean up tmp directory on failure
+            if (isset($tmpPath) && is_dir($tmpPath)) {
+                File::deleteDirectory($tmpPath);
+            }
+
             Log::error('Import upload failed: '.$e->getMessage(), ['trace' => $e->getTraceAsString()]);
 
             return response()->json([
@@ -124,19 +150,26 @@ class ProductImportController extends Controller
                 'folder' => 'required|string|max:255',
             ]);
 
+            // Prevent directory traversal
             $folderName = basename($request->input('folder'));
+
+            if (str_contains($folderName, '..')) {
+                return response()->json(['error' => 'Invalid folder name.'], 422);
+            }
+
             $folderPath = storage_path("app/imports/{$folderName}");
 
             if (! is_dir($folderPath)) {
                 return response()->json(['error' => "Folder '{$folderName}' not found in storage/app/imports/."], 422);
             }
 
-            $csvPath = $this->findCsv($folderPath);
+            $validationError = $this->validatePackageStructure($folderPath);
 
-            if (! $csvPath) {
-                return response()->json(['error' => 'No products.csv found in folder.'], 422);
+            if ($validationError) {
+                return response()->json(['error' => $validationError], 422);
             }
 
+            $csvPath = $this->findCsv($folderPath);
             $imagesPath = $this->findImagesDir($folderPath);
 
             $tracker = ImportProgressTracker::create('folder', $folderPath);
@@ -208,21 +241,55 @@ class ProductImportController extends Controller
 
         $folders = collect(File::directories($importsDir))
             ->map(fn ($path) => basename($path))
-            ->filter(fn ($name) => $name !== 'processed')
+            ->filter(fn ($name) => ! in_array($name, ['processed', 'failed', 'tmp'], true))
             ->values();
 
         return response()->json(['folders' => $folders]);
     }
 
-    private function findCsv(string $basePath): ?string
+    /**
+     * Validate that the extracted package contains required files.
+     */
+    private function validatePackageStructure(string $basePath): ?string
     {
-        if (file_exists("{$basePath}/products.csv")) {
-            return "{$basePath}/products.csv";
+        $csvPath = $this->findCsv($basePath);
+
+        if (! $csvPath) {
+            $contents = collect(File::allFiles($basePath))
+                ->map(fn ($f) => $f->getRelativePathname())
+                ->take(20)
+                ->implode(', ');
+
+            return "Invalid package: products.csv not found. Extracted contents: {$contents}";
         }
 
-        $dirs = File::directories($basePath);
+        $imagesDir = $this->findImagesDir($basePath);
+
+        if (! $imagesDir) {
+            return 'Invalid package: images/ directory not found. The package must contain both products.csv and an images/ folder.';
+        }
+
+        return null;
+    }
+
+    private function findCsv(string $basePath): ?string
+    {
+        $normalized = PathHelper::normalize($basePath);
+
+        if (file_exists("{$normalized}/products.csv")) {
+            return "{$normalized}/products.csv";
+        }
+
+        // Check one level deeper (ZIP might have a wrapper folder)
+        if (! is_dir($normalized)) {
+            return null;
+        }
+
+        $dirs = File::directories($normalized);
 
         foreach ($dirs as $dir) {
+            $dir = PathHelper::normalize($dir);
+
             if (file_exists("{$dir}/products.csv")) {
                 return "{$dir}/products.csv";
             }
@@ -233,13 +300,21 @@ class ProductImportController extends Controller
 
     private function findImagesDir(string $basePath): ?string
     {
-        if (is_dir("{$basePath}/images")) {
-            return "{$basePath}/images";
+        $normalized = PathHelper::normalize($basePath);
+
+        if (is_dir("{$normalized}/images")) {
+            return "{$normalized}/images";
         }
 
-        $dirs = File::directories($basePath);
+        if (! is_dir($normalized)) {
+            return null;
+        }
+
+        $dirs = File::directories($normalized);
 
         foreach ($dirs as $dir) {
+            $dir = PathHelper::normalize($dir);
+
             if (is_dir("{$dir}/images")) {
                 return "{$dir}/images";
             }

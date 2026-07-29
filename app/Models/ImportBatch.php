@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ImportBatch extends Model
 {
+    protected $table = 'product_import_batches';
+
     protected $fillable = [
         'batch_id',
         'status',

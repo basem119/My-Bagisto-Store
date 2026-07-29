@@ -90,7 +90,8 @@ class ProcessProductImport implements ShouldQueue
 
             // Move source folder to processed
             if ($this->sourceFolderPath && is_dir($this->sourceFolderPath)) {
-                $processedDir = storage_path('app/imports/processed/'.now()->format('Y-m-d-H-i-s'));
+                $timestamp = now()->format('Y-m-d_His');
+                $processedDir = storage_path("app/imports/processed/{$timestamp}_{$this->batchId}");
                 File::ensureDirectoryExists(dirname($processedDir));
                 File::moveDirectory($this->sourceFolderPath, $processedDir);
                 $logWriter->info("Moved source folder to: {$processedDir}");
@@ -100,6 +101,19 @@ class ProcessProductImport implements ShouldQueue
         } catch (\Throwable $e) {
             $logWriter->error('FATAL', $e->getMessage());
             $tracker->fail($e->getMessage());
+
+            // Move source folder to failed
+            if ($this->sourceFolderPath && is_dir($this->sourceFolderPath)) {
+                try {
+                    $timestamp = now()->format('Y-m-d_His');
+                    $failedDir = storage_path("app/imports/failed/{$timestamp}_{$this->batchId}");
+                    File::ensureDirectoryExists(dirname($failedDir));
+                    File::moveDirectory($this->sourceFolderPath, $failedDir);
+                    $logWriter->info("Moved source folder to failed: {$failedDir}");
+                } catch (\Throwable $moveError) {
+                    $logWriter->info("Could not move to failed: {$moveError->getMessage()}");
+                }
+            }
 
             throw $e;
         }

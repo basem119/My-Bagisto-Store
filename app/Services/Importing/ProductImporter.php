@@ -4,6 +4,7 @@ namespace App\Services\Importing;
 
 use App\Services\Importing\Support\ImportLogWriter;
 use App\Services\Importing\Support\ImportProgressTracker;
+use App\Services\Importing\Support\PathHelper;
 use App\Services\Importing\Support\ProductImportStorage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -49,7 +50,7 @@ class ProductImporter
 
     public function setImageBasePath(string $path): self
     {
-        $this->imageBasePath = rtrim($path, '/\\');
+        $this->imageBasePath = PathHelper::normalize($path);
 
         return $this;
     }
