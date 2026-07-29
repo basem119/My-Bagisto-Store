@@ -543,11 +543,32 @@ class ProductRepository extends Repository
     {
         $superAttributes = [];
 
+        // Collect option IDs actually used by this product's variants
+        $usedOptionIds = [];
+
+        foreach ($product->variants as $variant) {
+            foreach ($product->super_attributes as $attribute) {
+                $value = $variant->attribute_values
+                    ->where('attribute_id', $attribute->id)
+                    ->first();
+
+                if ($value) {
+                    $usedOptionIds[$attribute->id][] = (int) $value->integer_value;
+                }
+            }
+        }
+
         foreach ($product->super_attributes as $key => $attribute) {
             $superAttributes[$key] = $attribute->toArray();
             $superAttributes[$key]['options'] = [];
 
+            $variantOptionIds = array_unique($usedOptionIds[$attribute->id] ?? []);
+
             foreach ($attribute->options as $option) {
+                if (! in_array($option->id, $variantOptionIds, true)) {
+                    continue;
+                }
+
                 $superAttributes[$key]['options'][] = [
                     'id'           => $option->id,
                     'label'        => $option->label,
