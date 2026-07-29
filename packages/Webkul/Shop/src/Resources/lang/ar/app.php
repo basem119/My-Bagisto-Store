@@ -800,7 +800,7 @@ return [
             'add-to-cart'            => 'أضف إلى السلة',
             'add-to-compare'         => 'تمت إضافة المنتج إلى قائمة المقارنة.',
             'add-to-wishlist'        => 'أضف إلى قائمة الرغبات',
-            'additional-information' => 'معلومات إضافية',
+            'additional-information' => 'تفاصيل المنتج',
             'already-in-compare'     => 'المنتج مضاف بالفعل إلى قائمة المقارنة.',
             'buy-now'                => 'اشتر الآن',
             'compare'                => 'مقارنة',
