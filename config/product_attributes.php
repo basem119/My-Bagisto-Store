@@ -14,9 +14,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'product_type', 'ar' => 'product_type_ar'],
     ],
 
     'target_gender' => [
@@ -50,9 +51,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'target_age', 'ar' => 'target_age_ar'],
     ],
 
     'estimated_material' => [
@@ -68,9 +70,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'estimated_material', 'ar' => 'estimated_material_ar'],
     ],
 
     'estimated_quality_level' => [
@@ -104,9 +107,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'product_style', 'ar' => 'product_style_ar'],
     ],
 
     'suitable_usage' => [
@@ -122,9 +126,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'suitable_usage', 'ar' => 'suitable_usage_ar'],
     ],
 
     'shape' => [
@@ -140,9 +145,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'shape', 'ar' => 'shape_ar'],
     ],
 
     'compartments' => [
@@ -158,9 +164,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'compartments', 'ar' => 'compartments_ar'],
     ],
 
     'pockets' => [
@@ -176,9 +183,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'pockets', 'ar' => 'pockets_ar'],
     ],
 
     'handles' => [
@@ -194,9 +202,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'handles', 'ar' => 'handles_ar'],
     ],
 
     'shoulder_straps' => [
@@ -212,9 +221,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'shoulder_straps', 'ar' => 'shoulder_straps_ar'],
     ],
 
     'closure_type' => [
@@ -248,9 +258,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'pattern', 'ar' => 'pattern_ar'],
     ],
 
     'printed_characters' => [
@@ -266,9 +277,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'printed_characters', 'ar' => 'printed_characters_ar'],
     ],
 
     'unique_characteristics' => [
@@ -284,9 +296,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'unique_characteristics', 'ar' => 'unique_characteristics_ar'],
     ],
 
     'selling_points' => [
@@ -302,9 +315,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'selling_points', 'ar' => 'selling_points_ar'],
     ],
 
     'size' => [
@@ -352,9 +366,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'dimensions', 'ar' => 'dimensions_ar'],
     ],
 
     'capacity' => [
@@ -370,9 +385,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'capacity', 'ar' => 'capacity_ar'],
     ],
 
     'school_stage' => [
@@ -406,9 +422,10 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'usage', 'ar' => 'usage_ar'],
     ],
 
     'occasion' => [
@@ -424,9 +441,48 @@ return [
         'searchable' => true,
         'comparable' => true,
         'visible_on_front' => true,
-        'value_per_locale' => false,
+        'value_per_locale' => true,
         'value_per_channel' => false,
         'configurable' => false,
+        'csv_columns' => ['en' => 'occasion', 'ar' => 'occasion_ar'],
+    ],
+
+    'season' => [
+        'admin_name' => 'Season',
+        'translations' => [
+            'ar' => 'الموسم',
+            'en' => 'Season',
+        ],
+        'type' => 'text',
+        'group' => 'Meta Information',
+        'required' => false,
+        'filterable' => true,
+        'searchable' => true,
+        'comparable' => true,
+        'visible_on_front' => true,
+        'value_per_locale' => true,
+        'value_per_channel' => false,
+        'configurable' => false,
+        'csv_columns' => ['en' => 'season', 'ar' => 'season_ar'],
+    ],
+
+    'audience' => [
+        'admin_name' => 'Audience',
+        'translations' => [
+            'ar' => 'الجمهور المستهدف',
+            'en' => 'Audience',
+        ],
+        'type' => 'text',
+        'group' => 'Meta Information',
+        'required' => false,
+        'filterable' => true,
+        'searchable' => true,
+        'comparable' => true,
+        'visible_on_front' => true,
+        'value_per_locale' => true,
+        'value_per_channel' => false,
+        'configurable' => false,
+        'csv_columns' => ['en' => 'audience', 'ar' => 'audience_ar'],
     ],
 
     'available_colors' => [

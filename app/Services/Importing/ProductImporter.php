@@ -2,6 +2,9 @@
 
 namespace App\Services\Importing;
 
+use App\Services\Importing\Support\ImportLogWriter;
+use App\Services\Importing\Support\ImportProgressTracker;
+use App\Services\Importing\Support\PathHelper;
 use App\Services\Importing\Support\ProductImportStorage;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -12,6 +15,12 @@ use Webkul\Product\Repositories\ProductRepository;
 class ProductImporter
 {
     private $logger;
+
+    private ?ImportProgressTracker $tracker = null;
+
+    private ?ImportLogWriter $logWriter = null;
+
+    private ?string $imageBasePath = null;
 
     public function __construct(
         private ProductRepository $productRepository,
@@ -25,6 +34,27 @@ class ProductImporter
         ]);
     }
 
+    public function setTracker(ImportProgressTracker $tracker): self
+    {
+        $this->tracker = $tracker;
+
+        return $this;
+    }
+
+    public function setLogWriter(ImportLogWriter $logWriter): self
+    {
+        $this->logWriter = $logWriter;
+
+        return $this;
+    }
+
+    public function setImageBasePath(string $path): self
+    {
+        $this->imageBasePath = PathHelper::normalize($path);
+
+        return $this;
+    }
+
     public function import(string $path): array
     {
         if (! file_exists($path)) {
@@ -33,52 +63,28 @@ class ProductImporter
 
         $this->attributeManager->syncFromConfig();
 
-        $groupedRows = collect($this->storage->readCsv($path))->groupBy('parent_sku');
+        $rows = $this->storage->readCsv($path);
+        $groupedRows = collect($rows)->groupBy('parent_sku');
+
+        if ($this->tracker) {
+            $this->tracker->start(
+                $groupedRows->count(),
+                $this->logWriter?->getLogFile() ?? 'import.log'
+            );
+        }
+
+        $this->log('info', "Starting import: {$groupedRows->count()} parent groups, ".count($rows).' total rows');
 
         $parentIds = [];
 
         DB::transaction(function () use ($groupedRows, &$parentIds) {
             foreach ($groupedRows as $parentSku => $items) {
-                $existing = Product::where('sku', (string) $parentSku)->first();
-
-                if ($existing) {
-                    $this->logger->info("Skipped: parent SKU '{$parentSku}' already exists (id={$existing->id})");
-
-                    continue;
-                }
-
-                $parent = $this->createConfigurableProduct((string) $parentSku, $items->first());
-
-                $parentId = $this->storage->getProductId($parent);
-
-                if (! $parentId) {
-                    continue;
-                }
-
-                $parentIds[] = $parentId;
-
-                $this->syncConfigurableAttributes($parentId);
-
-                $firstVariantId = null;
-
-                foreach ($items as $item) {
-                    $variantSku = trim($item['sku'] ?? '');
-
-                    if ($variantSku && Product::where('sku', $variantSku)->exists()) {
-                        $this->logger->info("Skipped: variant SKU '{$variantSku}' already exists");
-
-                        continue;
-                    }
-
-                    $variant = $this->createSimpleProduct($parentId, $item);
-
-                    if (! $firstVariantId) {
-                        $firstVariantId = $variant;
-                    }
-                }
-
-                if ($firstVariantId) {
-                    $this->storage->copyFirstVariantImageToParent($parentId, $firstVariantId);
+                try {
+                    $this->processParentGroup((string) $parentSku, $items, $parentIds);
+                } catch (\Throwable $e) {
+                    $this->log('error', "Error processing '{$parentSku}': {$e->getMessage()}");
+                    $this->logWriter?->error((string) $parentSku, $e->getMessage());
+                    $this->tracker?->incrementErrors();
                 }
             }
 
@@ -90,11 +96,112 @@ class ProductImporter
         return $parentIds;
     }
 
+    private function processParentGroup(string $parentSku, $items, array &$parentIds): void
+    {
+        $existing = Product::where('sku', $parentSku)->first();
+        $firstRow = $this->itemToArray($items->first());
+
+        if ($existing) {
+            $parentId = $existing->id;
+
+            $this->storage->saveCoreAttributes($parentId, $firstRow, $parentSku, true);
+            $this->applyConfiguredAttributes($parentId, $firstRow, 'parent');
+            $this->storage->attachCategory($parentId, $firstRow['category'] ?? null);
+
+            $this->syncConfigurableAttributes($parentId);
+
+            $this->log('info', "Updated: parent SKU '{$parentSku}' (id={$parentId})");
+            $this->logWriter?->updated($parentSku);
+
+            $parentIds[] = $parentId;
+
+            $firstVariantId = null;
+
+            foreach ($items as $item) {
+                $row = $this->itemToArray($item);
+                $variantSku = trim($row['sku'] ?? '');
+
+                if (! $variantSku) {
+                    continue;
+                }
+
+                $existingVariant = Product::where('sku', $variantSku)->first();
+
+                if ($existingVariant) {
+                    $this->updateSimpleProduct($existingVariant->id, $row);
+                    $this->logWriter?->updated($variantSku, 'simple');
+
+                    if (! $firstVariantId) {
+                        $firstVariantId = $existingVariant->id;
+                    }
+                } else {
+                    $variantId = $this->createSimpleProduct($parentId, $row);
+                    $this->logWriter?->created($variantSku, 'simple');
+                    $this->tracker?->incrementCreated();
+
+                    if (! $firstVariantId) {
+                        $firstVariantId = $variantId;
+                    }
+                }
+            }
+
+            $this->storage->attachConfigurableImages($parentId, $parentSku, $this->imageBasePath);
+
+            $this->tracker?->incrementUpdated();
+        } else {
+            $parent = $this->createConfigurableProduct($parentSku, $firstRow);
+            $parentId = $this->storage->getProductId($parent);
+
+            if (! $parentId) {
+                $this->tracker?->incrementSkipped();
+
+                return;
+            }
+
+            $parentIds[] = $parentId;
+
+            $this->syncConfigurableAttributes($parentId);
+
+            $this->log('info', "Created: parent SKU '{$parentSku}' (id={$parentId})");
+            $this->logWriter?->created($parentSku);
+
+            $firstVariantId = null;
+
+            foreach ($items as $item) {
+                $row = $this->itemToArray($item);
+                $variantSku = trim($row['sku'] ?? '');
+
+                if ($variantSku && Product::where('sku', $variantSku)->exists()) {
+                    $this->log('info', "Skipped: variant SKU '{$variantSku}' already exists");
+                    $this->logWriter?->skipped($variantSku, 'SKU already exists');
+
+                    continue;
+                }
+
+                $variant = $this->createSimpleProduct($parentId, $row);
+                $this->logWriter?->created($variantSku, 'simple');
+
+                if (! $firstVariantId) {
+                    $firstVariantId = $variant;
+                }
+            }
+
+            $this->storage->attachConfigurableImages($parentId, $parentSku, $this->imageBasePath);
+
+            $this->tracker?->incrementCreated();
+        }
+    }
+
+    private function itemToArray(mixed $item): array
+    {
+        return is_array($item) ? $item : (method_exists($item, 'toArray') ? $item->toArray() : (array) $item);
+    }
+
     private function createConfigurableProduct(string $sku, array $row): object
     {
         $product = $this->productRepository->create([
-            'sku'               => $sku,
-            'type'              => 'configurable',
+            'sku'                 => $sku,
+            'type'                => 'configurable',
             'attribute_family_id' => (int) config('product_attributes.attribute_family_id', 1),
         ]);
 
@@ -124,14 +231,28 @@ class ProductImporter
 
         $this->storage->attachCategory($productId, $row['category'] ?? null);
         $this->storage->attachInventory($productId, (float) ($row['qty'] ?? 0));
-        $this->storage->attachImagesFromFolder(
+
+        $imageCount = $this->storage->attachImagesFromFolder(
             $productId,
             $row['sku'],
             trim($row['parent_sku'] ?? ''),
-            trim($row['color'] ?? '')
+            trim($row['color'] ?? ''),
+            $this->imageBasePath
         );
 
+        $this->tracker?->incrementImages($imageCount);
+
         return $productId;
+    }
+
+    private function updateSimpleProduct(int $productId, array $row): void
+    {
+        $this->storage->saveCoreAttributes($productId, $row, $row['sku'], false);
+        $this->applyColorAttribute($productId, $row);
+        $this->applyConfiguredAttributes($productId, $row, 'variant');
+
+        $this->storage->attachCategory($productId, $row['category'] ?? null);
+        $this->storage->attachInventory($productId, (float) ($row['qty'] ?? 0));
     }
 
     private function applyConfiguredAttributes(int $productId, array $row, string $target): void
@@ -171,9 +292,6 @@ class ProductImporter
         }
     }
 
-    /**
-     * @param  array<string, string>  $row
-     */
     private function saveMappedAttributeValue(
         int $productId,
         ProductAttribute $attribute,
@@ -225,7 +343,6 @@ class ProductImporter
 
     private function syncConfigurableAttributes(int $parentId): void
     {
-        // Always register built-in color as super attribute
         $colorAttribute = $this->attributeManager->getAttribute('color');
 
         if ($colorAttribute) {
@@ -251,4 +368,9 @@ class ProductImporter
         }
     }
 
+    private function log(string $level, string $message): void
+    {
+        $this->logger->{$level}($message);
+        $this->logWriter?->{$level === 'error' ? 'error' : 'info'}($message);
+    }
 }

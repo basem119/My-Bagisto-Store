@@ -4,6 +4,7 @@ namespace App\Services\Importing\Support;
 
 use App\Services\Importing\AttributeManager;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Webkul\Attribute\Models\Attribute as ProductAttribute;
@@ -32,7 +33,20 @@ class ProductImportStorage
         }, $header ?: []);
 
         while (($data = fgetcsv($handle)) !== false) {
-            $rows[] = array_combine($header, array_map('trim', $data));
+            if (count($data) !== count($header)) {
+                continue;
+            }
+
+            $row = array_combine($header, array_map('trim', $data));
+
+            // Normalize path separators in path-related columns
+            foreach (['image_1', 'image_path', 'parent_sku', 'sku'] as $col) {
+                if (isset($row[$col])) {
+                    $row[$col] = str_replace('\\', '/', $row[$col]);
+                }
+            }
+
+            $rows[] = $row;
         }
 
         fclose($handle);
@@ -63,6 +77,20 @@ class ProductImportStorage
         $this->saveAttributeValue($productId, 'status', 1);
         $this->saveAttributeValue($productId, 'visible_individually', $isParent ? 1 : 0);
 
+        // Meta SEO fields (locale-specific, en + ar)
+        $metaFields = [
+            'meta_title'       => ['en' => $row['meta_title'] ?? '', 'ar' => $row['meta_title_ar'] ?? ''],
+            'meta_description' => ['en' => $row['meta_description'] ?? '', 'ar' => $row['meta_description_ar'] ?? ''],
+            'meta_keywords'    => ['en' => $row['meta_keywords'] ?? '', 'ar' => $row['meta_keywords_ar'] ?? ''],
+        ];
+
+        foreach ($metaFields as $attr => $locales) {
+            if ($locales['en'] !== '') {
+                $this->saveAttributeValue($productId, $attr, $locales['en'], 'en');
+            }
+            $this->saveAttributeValue($productId, $attr, $locales['ar'] !== '' ? $locales['ar'] : $locales['en'], 'ar');
+        }
+
         if ($isParent) {
             return;
         }
@@ -78,16 +106,36 @@ class ProductImportStorage
             return;
         }
 
-        $category = DB::table('category_translations')->where('name', $categoryName)->first();
+        // Support multiple categories separated by / or ,
+        $separators = ['/', ','];
+        $names = [$categoryName];
 
-        if (! $category) {
-            return;
+        foreach ($separators as $sep) {
+            if (str_contains($categoryName, $sep)) {
+                $names = array_map('trim', explode($sep, $categoryName));
+                break;
+            }
         }
 
-        DB::table('product_categories')->updateOrInsert(
-            ['product_id' => $productId, 'category_id' => $category->category_id],
-            ['product_id' => $productId, 'category_id' => $category->category_id]
-        );
+        foreach ($names as $name) {
+            if ($name === '') {
+                continue;
+            }
+
+            $category = DB::table('category_translations')
+                ->where('locale', 'en')
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+                ->first();
+
+            if (! $category) {
+                continue;
+            }
+
+            DB::table('product_categories')->updateOrInsert(
+                ['product_id' => $productId, 'category_id' => $category->category_id],
+                ['product_id' => $productId, 'category_id' => $category->category_id]
+            );
+        }
     }
 
     public function attachInventory(int $productId, float $qty): void
@@ -98,13 +146,20 @@ class ProductImportStorage
         );
     }
 
-    public function attachImagesFromFolder(int $productId, string $sku, ?string $parentSku = null, ?string $color = null): void
+    public function attachImagesFromFolder(int $productId, string $sku, ?string $parentSku = null, ?string $color = null, ?string $imageBasePath = null): int
     {
+        $basePath = PathHelper::normalize($imageBasePath ?? storage_path('app/import/images'));
+
+        // Normalize color/sku for cross-platform path matching
+        $normalizedColor = $color ? PathHelper::sanitizeFilename($color) : null;
+        $normalizedSku = PathHelper::sanitizeFilename($sku);
+        $normalizedParentSku = $parentSku ? PathHelper::sanitizeFilename($parentSku) : null;
+
         $folder = null;
 
         // Try structure: {ParentSKU}/{Color}/
-        if ($parentSku && $color) {
-            $candidate = storage_path("app/import/images/{$parentSku}/{$color}");
+        if ($normalizedParentSku && $normalizedColor) {
+            $candidate = PathHelper::join($basePath, $normalizedParentSku, $normalizedColor);
 
             if (is_dir($candidate)) {
                 $folder = $candidate;
@@ -112,8 +167,8 @@ class ProductImportStorage
         }
 
         // Try structure: {SKU}/{Color}/
-        if (! $folder && $color) {
-            $candidate = storage_path("app/import/images/{$sku}/{$color}");
+        if (! $folder && $normalizedColor) {
+            $candidate = PathHelper::join($basePath, $normalizedSku, $normalizedColor);
 
             if (is_dir($candidate)) {
                 $folder = $candidate;
@@ -122,7 +177,7 @@ class ProductImportStorage
 
         // Fall back to: {SKU}/ (flat images directly in folder)
         if (! $folder) {
-            $candidate = storage_path("app/import/images/{$sku}");
+            $candidate = PathHelper::join($basePath, $normalizedSku);
 
             if (is_dir($candidate) && $this->hasImageFiles($candidate)) {
                 $folder = $candidate;
@@ -130,50 +185,151 @@ class ProductImportStorage
         }
 
         if (! $folder) {
-            return;
+            return 0;
         }
 
-        $files = scandir($folder) ?: [];
-        $position = 0;
+        $count = 0;
+        $position = DB::table('product_images')->where('product_id', $productId)->max('position') ?? -1;
+        $position++;
 
-        foreach ($files as $file) {
-            if (in_array($file, ['.', '..'], true)) {
+        $iterator = new \DirectoryIterator($folder);
+
+        foreach ($iterator as $fileInfo) {
+            if ($fileInfo->isDot() || ! $fileInfo->isFile()) {
                 continue;
             }
 
-            $fullPath = $folder.'/'.$file;
+            $filename = $fileInfo->getFilename();
 
-            if (! is_file($fullPath)) {
+            // Case-insensitive image extension check
+            if (! PathHelper::isImageFile($filename)) {
                 continue;
             }
 
-            $newPath = "product/{$sku}/{$file}";
+            $fullPath = PathHelper::normalize($fileInfo->getPathname());
 
-            Storage::disk('public')->put($newPath, file_get_contents($fullPath));
+            // Sanitize filename for storage (preserve Unicode/Arabic)
+            $safeFilename = PathHelper::sanitizeFilename($filename);
+            $storagePath = "product/{$normalizedSku}/{$safeFilename}";
 
-            DB::table('product_images')->insert([
-                'product_id' => $productId,
-                'type'       => 'image',
-                'path'       => $newPath,
-                'position'   => $position++,
-            ]);
+            try {
+                Storage::disk('public')->put($storagePath, file_get_contents($fullPath));
+
+                DB::table('product_images')->updateOrInsert(
+                    ['product_id' => $productId, 'path' => $storagePath],
+                    [
+                        'product_id' => $productId,
+                        'type'       => 'image',
+                        'path'       => $storagePath,
+                        'position'   => $position++,
+                    ]
+                );
+
+                $count++;
+            } catch (\Throwable $e) {
+                // Log error but don't stop the batch
+                \Illuminate\Support\Facades\Log::warning("Image import failed for {$sku}/{$filename}: {$e->getMessage()}");
+            }
         }
+
+        return $count;
     }
 
-    public function copyFirstVariantImageToParent(int $parentId, int $variantId): void
+    public function attachConfigurableImages(int $parentId, string $parentSku, ?string $imageBasePath = null): int
     {
-        $firstImage = DB::table('product_images')->where('product_id', $variantId)->first();
+        $basePath = PathHelper::normalize($imageBasePath ?? storage_path('app/import/images'));
+        $parentFolder = PathHelper::join($basePath, PathHelper::sanitizeFilename($parentSku));
 
-        if (! $firstImage) {
-            return;
+        if (! is_dir($parentFolder)) {
+            return 0;
         }
 
-        DB::table('product_images')->insert([
-            'type'       => 'image',
-            'path'       => $firstImage->path,
-            'product_id' => $parentId,
-            'position'   => 0,
-        ]);
+        $count = 0;
+        $position = (int) (DB::table('product_images')->where('product_id', $parentId)->max('position') ?? -1) + 1;
+
+        // 1. First image from each color subfolder
+        $iterator = new \DirectoryIterator($parentFolder);
+        $colorDirs = [];
+
+        foreach ($iterator as $item) {
+            if ($item->isDot() || ! $item->isDir()) {
+                continue;
+            }
+            $colorDirs[] = $item->getPathname();
+        }
+
+        sort($colorDirs);
+
+        foreach ($colorDirs as $colorDir) {
+            $firstImage = $this->getFirstImageInDir($colorDir);
+
+            if (! $firstImage) {
+                continue;
+            }
+
+            $storagePath = "product/{$parentSku}/" . basename(dirname($firstImage)) . '_' . basename($firstImage);
+
+            try {
+                Storage::disk('public')->put($storagePath, file_get_contents($firstImage));
+
+                DB::table('product_images')->updateOrInsert(
+                    ['product_id' => $parentId, 'path' => $storagePath],
+                    ['type' => 'image', 'position' => $position++]
+                );
+
+                $count++;
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Parent image failed for {$parentSku}: {$e->getMessage()}");
+            }
+        }
+
+        // 2. Lifestyle images directly in parent folder
+        $parentIterator = new \DirectoryIterator($parentFolder);
+
+        foreach ($parentIterator as $fileInfo) {
+            if ($fileInfo->isDot() || ! $fileInfo->isFile()) {
+                continue;
+            }
+
+            if (! PathHelper::isImageFile($fileInfo->getFilename())) {
+                continue;
+            }
+
+            $fullPath = PathHelper::normalize($fileInfo->getPathname());
+            $safeFilename = PathHelper::sanitizeFilename($fileInfo->getFilename());
+            $storagePath = "product/{$parentSku}/{$safeFilename}";
+
+            try {
+                Storage::disk('public')->put($storagePath, file_get_contents($fullPath));
+
+                DB::table('product_images')->updateOrInsert(
+                    ['product_id' => $parentId, 'path' => $storagePath],
+                    ['type' => 'image', 'position' => $position++]
+                );
+
+                $count++;
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Lifestyle image failed for {$parentSku}: {$e->getMessage()}");
+            }
+        }
+
+        return $count;
+    }
+
+    private function getFirstImageInDir(string $dir): ?string
+    {
+        $files = [];
+
+        foreach (new \DirectoryIterator($dir) as $item) {
+            if ($item->isDot() || ! $item->isFile() || ! PathHelper::isImageFile($item->getFilename())) {
+                continue;
+            }
+            $files[] = PathHelper::normalize($item->getPathname());
+        }
+
+        sort($files);
+
+        return $files[0] ?? null;
     }
 
     public function syncRelatedProductsByCategory(int $productId): void
@@ -263,14 +419,14 @@ class ProductImportStorage
 
     private function hasImageFiles(string $directory): bool
     {
-        $files = scandir($directory) ?: [];
+        $iterator = new \DirectoryIterator($directory);
 
-        foreach ($files as $file) {
-            if (in_array($file, ['.', '..'], true)) {
+        foreach ($iterator as $item) {
+            if ($item->isDot()) {
                 continue;
             }
 
-            if (is_file($directory.'/'.$file)) {
+            if ($item->isFile() && PathHelper::isImageFile($item->getFilename())) {
                 return true;
             }
         }
