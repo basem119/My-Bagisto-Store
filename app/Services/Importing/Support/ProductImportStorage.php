@@ -106,16 +106,36 @@ class ProductImportStorage
             return;
         }
 
-        $category = DB::table('category_translations')->where('name', $categoryName)->first();
+        // Support multiple categories separated by / or ,
+        $separators = ['/', ','];
+        $names = [$categoryName];
 
-        if (! $category) {
-            return;
+        foreach ($separators as $sep) {
+            if (str_contains($categoryName, $sep)) {
+                $names = array_map('trim', explode($sep, $categoryName));
+                break;
+            }
         }
 
-        DB::table('product_categories')->updateOrInsert(
-            ['product_id' => $productId, 'category_id' => $category->category_id],
-            ['product_id' => $productId, 'category_id' => $category->category_id]
-        );
+        foreach ($names as $name) {
+            if ($name === '') {
+                continue;
+            }
+
+            $category = DB::table('category_translations')
+                ->where('locale', 'en')
+                ->whereRaw('LOWER(name) = ?', [mb_strtolower($name)])
+                ->first();
+
+            if (! $category) {
+                continue;
+            }
+
+            DB::table('product_categories')->updateOrInsert(
+                ['product_id' => $productId, 'category_id' => $category->category_id],
+                ['product_id' => $productId, 'category_id' => $category->category_id]
+            );
+        }
     }
 
     public function attachInventory(int $productId, float $qty): void
