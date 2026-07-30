@@ -58,10 +58,10 @@ return [
     ],
 
     'estimated_material' => [
-        'admin_name' => 'Estimated Material',
+        'admin_name' => 'Material',
         'translations' => [
-            'ar' => 'الخامة التقديرية',
-            'en' => 'Estimated Material',
+            'ar' => 'الخامة',
+            'en' => 'Material',
         ],
         'type' => 'text',
         'group' => 'Product Details',
@@ -77,10 +77,10 @@ return [
     ],
 
     'estimated_quality_level' => [
-        'admin_name' => 'Estimated Quality Level',
+        'admin_name' => 'Quality Level',
         'translations' => [
-            'ar' => 'مستوى الجودة التقديري',
-            'en' => 'Estimated Quality Level',
+            'ar' => 'مستوى الجودة',
+            'en' => 'Quality Level',
         ],
         'type' => 'select',
         'group' => 'Product Details',
