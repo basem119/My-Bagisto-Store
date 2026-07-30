@@ -235,24 +235,101 @@ class ProductImportStorage
         return $count;
     }
 
-    public function copyFirstVariantImageToParent(int $parentId, int $variantId): void
+    public function attachConfigurableImages(int $parentId, string $parentSku, ?string $imageBasePath = null): int
     {
-        $firstImage = DB::table('product_images')->where('product_id', $variantId)->first();
+        $basePath = PathHelper::normalize($imageBasePath ?? storage_path('app/import/images'));
+        $parentFolder = PathHelper::join($basePath, PathHelper::sanitizeFilename($parentSku));
 
-        if (! $firstImage) {
-            return;
+        if (! is_dir($parentFolder)) {
+            return 0;
         }
 
-        DB::table('product_images')->updateOrInsert(
-            [
-                'product_id' => $parentId,
-                'path'       => $firstImage->path,
-            ],
-            [
-                'type'     => 'image',
-                'position' => 0,
-            ]
-        );
+        $count = 0;
+        $position = (int) (DB::table('product_images')->where('product_id', $parentId)->max('position') ?? -1) + 1;
+
+        // 1. First image from each color subfolder
+        $iterator = new \DirectoryIterator($parentFolder);
+        $colorDirs = [];
+
+        foreach ($iterator as $item) {
+            if ($item->isDot() || ! $item->isDir()) {
+                continue;
+            }
+            $colorDirs[] = $item->getPathname();
+        }
+
+        sort($colorDirs);
+
+        foreach ($colorDirs as $colorDir) {
+            $firstImage = $this->getFirstImageInDir($colorDir);
+
+            if (! $firstImage) {
+                continue;
+            }
+
+            $storagePath = "product/{$parentSku}/" . basename(dirname($firstImage)) . '_' . basename($firstImage);
+
+            try {
+                Storage::disk('public')->put($storagePath, file_get_contents($firstImage));
+
+                DB::table('product_images')->updateOrInsert(
+                    ['product_id' => $parentId, 'path' => $storagePath],
+                    ['type' => 'image', 'position' => $position++]
+                );
+
+                $count++;
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Parent image failed for {$parentSku}: {$e->getMessage()}");
+            }
+        }
+
+        // 2. Lifestyle images directly in parent folder
+        $parentIterator = new \DirectoryIterator($parentFolder);
+
+        foreach ($parentIterator as $fileInfo) {
+            if ($fileInfo->isDot() || ! $fileInfo->isFile()) {
+                continue;
+            }
+
+            if (! PathHelper::isImageFile($fileInfo->getFilename())) {
+                continue;
+            }
+
+            $fullPath = PathHelper::normalize($fileInfo->getPathname());
+            $safeFilename = PathHelper::sanitizeFilename($fileInfo->getFilename());
+            $storagePath = "product/{$parentSku}/{$safeFilename}";
+
+            try {
+                Storage::disk('public')->put($storagePath, file_get_contents($fullPath));
+
+                DB::table('product_images')->updateOrInsert(
+                    ['product_id' => $parentId, 'path' => $storagePath],
+                    ['type' => 'image', 'position' => $position++]
+                );
+
+                $count++;
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning("Lifestyle image failed for {$parentSku}: {$e->getMessage()}");
+            }
+        }
+
+        return $count;
+    }
+
+    private function getFirstImageInDir(string $dir): ?string
+    {
+        $files = [];
+
+        foreach (new \DirectoryIterator($dir) as $item) {
+            if ($item->isDot() || ! $item->isFile() || ! PathHelper::isImageFile($item->getFilename())) {
+                continue;
+            }
+            $files[] = PathHelper::normalize($item->getPathname());
+        }
+
+        sort($files);
+
+        return $files[0] ?? null;
     }
 
     public function syncRelatedProductsByCategory(int $productId): void

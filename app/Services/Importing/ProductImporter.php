@@ -145,9 +145,7 @@ class ProductImporter
                 }
             }
 
-            if ($firstVariantId) {
-                $this->storage->copyFirstVariantImageToParent($parentId, $firstVariantId);
-            }
+            $this->storage->attachConfigurableImages($parentId, $parentSku, $this->imageBasePath);
 
             $this->tracker?->incrementUpdated();
         } else {
@@ -188,9 +186,7 @@ class ProductImporter
                 }
             }
 
-            if ($firstVariantId) {
-                $this->storage->copyFirstVariantImageToParent($parentId, $firstVariantId);
-            }
+            $this->storage->attachConfigurableImages($parentId, $parentSku, $this->imageBasePath);
 
             $this->tracker?->incrementCreated();
         }
