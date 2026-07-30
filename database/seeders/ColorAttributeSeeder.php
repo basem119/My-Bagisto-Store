@@ -23,22 +23,6 @@ class ColorAttributeSeeder extends Seeder
             return;
         }
 
-        // Remove all existing color options and their translations
-        $existingOptionIds = DB::table('attribute_options')
-            ->where('attribute_id', $attributeId)
-            ->pluck('id');
-
-        if ($existingOptionIds->isNotEmpty()) {
-            DB::table('attribute_option_translations')
-                ->whereIn('attribute_option_id', $existingOptionIds)
-                ->delete();
-
-            DB::table('attribute_options')
-                ->where('attribute_id', $attributeId)
-                ->delete();
-        }
-
-        // 30 unique colors with hex swatch values and Arabic translations
         $colors = [
             ['name' => 'Green',       'hex' => '#008000', 'ar' => 'أخضر'],
             ['name' => 'Mint Green',   'hex' => '#98FF98', 'ar' => 'أخضر نعناعي'],
@@ -70,31 +54,60 @@ class ColorAttributeSeeder extends Seeder
             ['name' => 'Grey',         'hex' => '#808080', 'ar' => 'رمادي'],
             ['name' => 'Beige',        'hex' => '#F5F5DC', 'ar' => 'بيج'],
             ['name' => 'Grey Brown',   'hex' => '#726150', 'ar' => 'رمادي بني'],
+            ['name' => 'Pink Zebra',   'hex' => '#FFB6C1', 'ar' => 'وردي زيبرا'],
+            ['name' => 'Purple Pink',  'hex' => '#CC66CC', 'ar' => 'بنفسجي وردي'],
+            ['name' => 'Black Green',  'hex' => '#1A3A1A', 'ar' => 'أسود أخضر'],
+            ['name' => 'Black Pink',   'hex' => '#3D1A2B', 'ar' => 'أسود وردي'],
+            ['name' => 'Grey Black',   'hex' => '#404040', 'ar' => 'رمادي أسود'],
+            ['name' => 'White',        'hex' => '#FFFFFF', 'ar' => 'أبيض'],
+            ['name' => 'Yellow',       'hex' => '#FFD700', 'ar' => 'أصفر'],
+            ['name' => 'Fuchsia',      'hex' => '#FF00FF', 'ar' => 'فوشيا'],
+            ['name' => 'Brown',        'hex' => '#8B4513', 'ar' => 'بني'],
         ];
 
+        $created = 0;
+        $updated = 0;
+
         foreach ($colors as $index => $color) {
-            $optionId = DB::table('attribute_options')->insertGetId([
-                'attribute_id' => $attributeId,
-                'admin_name'   => $color['name'],
-                'sort_order'   => $index + 1,
-                'swatch_value' => $color['hex'],
-            ]);
+            $existing = DB::table('attribute_options')
+                ->where('attribute_id', $attributeId)
+                ->whereRaw('LOWER(admin_name) = ?', [mb_strtolower($color['name'])])
+                ->first();
+
+            if ($existing) {
+                DB::table('attribute_options')
+                    ->where('id', $existing->id)
+                    ->update(['swatch_value' => $color['hex']]);
+
+                $optionId = $existing->id;
+                $updated++;
+            } else {
+                $maxSort = (int) DB::table('attribute_options')
+                    ->where('attribute_id', $attributeId)
+                    ->max('sort_order');
+
+                $optionId = DB::table('attribute_options')->insertGetId([
+                    'attribute_id' => $attributeId,
+                    'admin_name'   => $color['name'],
+                    'sort_order'   => $maxSort + 1,
+                    'swatch_value' => $color['hex'],
+                ]);
+                $created++;
+            }
 
             // English translation
-            DB::table('attribute_option_translations')->insert([
-                'attribute_option_id' => $optionId,
-                'locale'              => 'en',
-                'label'               => $color['name'],
-            ]);
+            DB::table('attribute_option_translations')->updateOrInsert(
+                ['attribute_option_id' => $optionId, 'locale' => 'en'],
+                ['label' => $color['name']]
+            );
 
             // Arabic translation
-            DB::table('attribute_option_translations')->insert([
-                'attribute_option_id' => $optionId,
-                'locale'              => 'ar',
-                'label'               => $color['ar'],
-            ]);
+            DB::table('attribute_option_translations')->updateOrInsert(
+                ['attribute_option_id' => $optionId, 'locale' => 'ar'],
+                ['label' => $color['ar']]
+            );
         }
 
-        $this->command->info("Seeded {$attributeId} color attribute with " . count($colors) . ' color options (swatch_type=color).');
+        $this->command->info("Color seeder: {$created} created, {$updated} updated (total " . count($colors) . ' colors).');
     }
 }

@@ -77,6 +77,20 @@ class ProductImportStorage
         $this->saveAttributeValue($productId, 'status', 1);
         $this->saveAttributeValue($productId, 'visible_individually', $isParent ? 1 : 0);
 
+        // Meta SEO fields (locale-specific, en + ar)
+        $metaFields = [
+            'meta_title'       => ['en' => $row['meta_title'] ?? '', 'ar' => $row['meta_title_ar'] ?? ''],
+            'meta_description' => ['en' => $row['meta_description'] ?? '', 'ar' => $row['meta_description_ar'] ?? ''],
+            'meta_keywords'    => ['en' => $row['meta_keywords'] ?? '', 'ar' => $row['meta_keywords_ar'] ?? ''],
+        ];
+
+        foreach ($metaFields as $attr => $locales) {
+            if ($locales['en'] !== '') {
+                $this->saveAttributeValue($productId, $attr, $locales['en'], 'en');
+            }
+            $this->saveAttributeValue($productId, $attr, $locales['ar'] !== '' ? $locales['ar'] : $locales['en'], 'ar');
+        }
+
         if ($isParent) {
             return;
         }
