@@ -17,7 +17,11 @@
     @endif
 @endPush
 
-<x-shop::layouts>
+<x-shop::layouts
+    :seo-title="trim($category->meta_title) != '' ? $category->meta_title : $category->name"
+    :seo-description="trim($category->meta_description) != '' ? $category->meta_description : trim(strip_tags($category->description))"
+    :seo-canonical="route('shop.product_or_category.index', $category->url_key)"
+>
     <!-- Page Title -->
     <x-slot:title>
         {{ trim($category->meta_title) != "" ? $category->meta_title : $category->name }}

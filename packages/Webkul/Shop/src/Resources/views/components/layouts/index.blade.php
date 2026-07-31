@@ -1,7 +1,13 @@
 @props([
-    'hasHeader'  => true,
-    'hasFeature' => true,
-    'hasFooter'  => true,
+    'hasHeader'       => true,
+    'hasFeature'      => true,
+    'hasFooter'       => true,
+    'seoTitle'        => null,
+    'seoDescription'  => null,
+    'seoCanonical'    => null,
+    'seoType'         => null,
+    'seoImage'        => null,
+    'seoTwitterImage' => null,
 ])
 
 <!DOCTYPE html>
@@ -39,6 +45,8 @@
             name="currency"
             content="{{ core()->getCurrentCurrency()->toJson() }}"
         >
+
+        @include('shop::components.seo.head')
 
         @stack('meta')
 
