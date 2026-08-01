@@ -27,9 +27,9 @@ class ImportProducts extends Command
         }
 
         try {
-            // Seed colors first to ensure all options exist with swatch values + Arabic translations
-            $this->info('Seeding color options...');
-            $this->call('db:seed', ['--class' => 'Database\\Seeders\\ColorAttributeSeeder', '--force' => true]);
+            // // Seed colors first to ensure all options exist with swatch values + Arabic translations
+            // $this->info('Seeding color options...');
+            // $this->call('db:seed', ['--class' => 'Database\\Seeders\\ColorAttributeSeeder', '--force' => true]);
 
             $parentIds = $this->productImporter->import($path);
 
