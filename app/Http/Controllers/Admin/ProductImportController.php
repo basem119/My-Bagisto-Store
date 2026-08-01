@@ -242,6 +242,7 @@ class ProductImportController extends Controller
         $folders = collect(File::directories($importsDir))
             ->map(fn ($path) => basename($path))
             ->filter(fn ($name) => ! in_array($name, ['processed', 'failed', 'tmp'], true))
+            ->filter(fn ($name) => ! preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $name))
             ->values();
 
         return response()->json(['folders' => $folders]);
